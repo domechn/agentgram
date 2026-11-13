@@ -12,6 +12,7 @@ struct AgentGramApp: App {
         store.isAppActive = { NSApp?.isActive ?? false }
         store.bridgeKey = ({ Keychain.get("bridge_key") }, { Keychain.set("bridge_key", $0) })
         _store = State(initialValue: store)
+        _ = Updater.controller // starts Sparkle's scheduled update checks
     }
 
     var body: some Scene {
@@ -33,6 +34,9 @@ struct AgentGramApp: App {
                     .disabled(!store.hermes.isConnected)
                 Button("Pin Telegram Agent…") { store.showAddAgent = true }
                     .disabled(store.auth != .ready || !store.telegramSource)
+            }
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { Updater.sparkle.checkForUpdates() }
             }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") { store.showSettings = true }
@@ -165,7 +169,7 @@ struct MainView: View {
                     Task { await store.hermesRefresh() }
                 }
             } else if store.hermes.bridgeOutdated {
-                ErrorBanner(text: "The host runs hermes-bridge \(store.hermes.bridgeVersion); Schedules need \(HermesState.requiredBridge). On the host: git pull, then sudo ./install.sh",
+                ErrorBanner(text: "The host runs hermes-bridge \(store.hermes.bridgeVersion); Schedules need \(HermesState.requiredBridge). On the host run: \(store.hermes.bridgeUpgradeHint)",
                             symbol: "arrow.down.circle", action: "Check Again") {
                     Task { await store.hermesConnect() }
                 }

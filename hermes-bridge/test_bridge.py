@@ -7,7 +7,10 @@ import base64
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -382,7 +385,8 @@ esac
     def test_hello_and_request_is_deleted(self):
         rid, mid = self.c.send("hello")
         frame, _ = self.c.wait(rid)
-        self.assertEqual(frame["data"], {"bridge": B.VERSION, "hermes": "Hermes Agent v0.22.4", "api": True})
+        self.assertEqual(frame["data"], {"bridge": B.VERSION, "hermes": "Hermes Agent v0.22.4", "api": True,
+                                         "source": "", "updatable": False})
         time.sleep(0.3)
         self.assertIn(mid, self.tg.deleted)
 
@@ -610,6 +614,97 @@ class ApiKeyTests(unittest.TestCase):
                 b.api_key("default")
             with self.assertRaises(B.BridgeError):
                 b.api_key("../p1")
+
+
+class UpdateTests(unittest.TestCase):
+    """bridge.update against a real git checkout: `upstream` plays GitHub, `opt` the install."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.upstream, self.checkout, self.installed = root / "upstream", root / "checkout", root / "opt" / "bridge.py"
+        (self.upstream / "hermes-bridge").mkdir(parents=True)
+        self.git("init", "-q", "-b", "main", cwd=self.upstream)
+        self.publish(Path(B.__file__).read_text())
+        self.git("clone", "-q", str(self.upstream), str(self.checkout), cwd=root)
+        self.installed.parent.mkdir()
+        shutil.copy(self.checkout / "hermes-bridge" / "bridge.py", self.installed)
+        self.urls, B.SOURCE_URLS = B.SOURCE_URLS, {str(self.upstream)}
+        self.tg = FakeTelegram()
+        self.bridge = start_bridge(self.tg, root, "http://127.0.0.1:9", state=root / "state")
+        self.bridge.source, self.bridge.path = str(self.checkout), self.installed
+        self.exits = []
+        self.bridge.exit = self.exits.append
+        self.c = Client(self.tg)
+
+    def tearDown(self):
+        self.bridge.stopping = True
+        B.SOURCE_URLS = self.urls
+        self.tmp.cleanup()
+
+    def git(self, *args, cwd):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+                       cwd=cwd, check=True, capture_output=True)
+
+    def publish(self, source, cwd=None):
+        cwd = cwd or self.upstream
+        (cwd / "hermes-bridge" / "bridge.py").write_text(source)
+        self.git("add", "-A", cwd=cwd)
+        self.git("commit", "-q", "-m", "bridge", cwd=cwd)
+
+    def newer(self):
+        return Path(B.__file__).read_text().replace(f'VERSION = "{B.VERSION}"', 'VERSION = "9.9.9"')
+
+    def test_version_flag(self):
+        out = subprocess.run([sys.executable, B.__file__, "--version"], capture_output=True, text=True, check=True)
+        self.assertEqual(out.stdout.strip(), B.VERSION)
+
+    def test_up_to_date_changes_nothing(self):
+        before = self.installed.read_bytes()
+        self.assertEqual(self.c.call("bridge.update"), {"version": B.VERSION, "updated": False})
+        time.sleep(0.3)
+        self.assertEqual((self.installed.read_bytes(), self.exits), (before, []))
+
+    def test_update_installs_the_pulled_bridge_then_restarts_and_is_audited(self):
+        self.assertEqual(self.bridge.not_updatable(), "")
+        self.publish(self.newer())
+        self.assertEqual(self.c.call("bridge.update"), {"version": "9.9.9", "updated": True})
+        self.assertIn('VERSION = "9.9.9"', self.installed.read_text())
+        self.assertTrue(os.access(self.installed, os.X_OK))
+        deadline = time.time() + 5
+        while not self.exits and time.time() < deadline:
+            time.sleep(0.05)
+        self.assertEqual(self.exits, [0])   # only after the reply above was sent
+        self.assertIn('"op": "bridge.update", "args": {}, "ok": true', (self.bridge.state / "audit.log").read_text())
+
+    def test_a_bridge_that_does_not_start_is_not_installed(self):
+        before = self.installed.read_bytes()
+        self.publish("this is not python\n")
+        with self.assertRaisesRegex(AssertionError, "does not start"):
+            self.c.call("bridge.update")
+        time.sleep(0.3)
+        self.assertEqual((self.installed.read_bytes(), self.exits), (before, []))
+        self.assertEqual([p.name for p in self.installed.parent.iterdir()], ["bridge.py"])
+
+    def test_a_diverged_checkout_is_left_alone(self):
+        before = self.installed.read_bytes()
+        self.publish(self.newer())
+        self.publish(Path(B.__file__).read_text() + "# local change\n", cwd=self.checkout)
+        with self.assertRaises(AssertionError):
+            self.c.call("bridge.update")
+        self.assertEqual((self.installed.read_bytes(), self.exits), (before, []))
+
+    def test_only_a_checkout_of_the_known_repository_updates_itself(self):
+        self.publish(self.newer())
+        B.SOURCE_URLS = self.urls   # the real list: the temporary upstream is a stranger
+        self.assertIn("origin", self.bridge.not_updatable())
+        with self.assertRaisesRegex(AssertionError, "origin is not the AgentGram repository"):
+            self.c.call("bridge.update")
+        self.bridge.source = ""
+        with self.assertRaisesRegex(AssertionError, "not installed from a git checkout"):
+            self.c.call("bridge.update")
+        self.assertNotIn("9.9.9", self.installed.read_text())
+        self.assertIn('"op": "bridge.update", "args": {}, "ok": false', (self.bridge.state / "audit.log").read_text())
 
 
 @unittest.skipUnless(os.environ.get("AG_LIVE_HERMES_HOME"), "set AG_LIVE_HERMES_HOME for the live run")

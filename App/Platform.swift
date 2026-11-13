@@ -1,6 +1,26 @@
 import AppKit
 import Security
+import Sparkle
 import UserNotifications
+
+/// In-app updates (Sparkle 2). The feed is the appcast.xml of the latest GitHub release; an
+/// update is installed only if its archive is signed with the key in Info.plist (SUPublicEDKey).
+@MainActor
+enum Updater {
+    static let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    static var sparkle: SPUUpdater { controller.updater }
+
+    static var appVersion: String {
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(short) (\(build))"
+    }
+
+    static var lastChecked: String {
+        guard let date = sparkle.lastUpdateCheckDate else { return "never" }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+}
 
 enum Keychain {
     private static func query(_ key: String) -> [String: Any] {

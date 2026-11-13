@@ -34,6 +34,9 @@ final class HermesState {
     var status = Status.off
     var apiEnabled = true
     var bridgeVersion = ""
+    var bridgeSource = ""       // the checkout on the host the bridge was installed from
+    var bridgeUpdatable = false // the bridge can run `bridge.update` itself
+    var bridgeUpdating = false
     // Library: every bot's files, kept so the view opens instantly the second time.
     var library: [HostFile] = []
     var libraryLoaded = false
@@ -75,6 +78,17 @@ final class HermesState {
 
     /// The host still runs a bridge without `jobs.*` and the one-request `files.list`.
     var bridgeOutdated: Bool { isConnected && versionIsOlder(bridgeVersion, than: Self.requiredBridge) }
+
+    /// The bridge in the repository at this app's version: the two are released together.
+    static var latestBridge: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? requiredBridge
+    }
+
+    /// The host runs an older bridge than the one released with this app (it may still work).
+    var bridgeUpdateAvailable: Bool { isConnected && versionIsOlder(bridgeVersion, than: Self.latestBridge) }
+
+    /// What to run on the host to update the bridge by hand.
+    var bridgeUpgradeHint: String { bridgeUpgradeCommand(source: bridgeSource) }
 }
 
 /// Stream state of one request: a chat turn has one message, a group message one per speaker.
@@ -138,6 +152,8 @@ extension AppStore {
             let hello: Hello = try await bridge("hello", timeout: 25)
             hermes.apiEnabled = hello.api
             hermes.bridgeVersion = hello.bridge
+            hermes.bridgeSource = hello.source ?? ""
+            hermes.bridgeUpdatable = hello.updatable ?? false
             hermes.versionLine = hello.hermes
             hermes.status = .connected(hello.hermes)
         } catch {
@@ -545,6 +561,26 @@ extension AppStore {
         } catch {
             toast = describe(error)
             return false
+        }
+    }
+
+    /// Settings → Update Bridge: the bridge fast-forwards its checkout, replaces itself and
+    /// restarts under systemd, so the handshake is repeated once it is back.
+    func bridgeUpdate() async {
+        guard !hermes.bridgeUpdating else { return }
+        hermes.bridgeUpdating = true
+        defer { hermes.bridgeUpdating = false }
+        do {
+            let done: BridgeUpdated = try await bridge("bridge.update", timeout: 180)
+            guard done.updated else {
+                toast = "The host already has the newest bridge (\(done.version))."
+                return
+            }
+            toast = "Bridge updated to \(done.version). Reconnecting…"
+            try? await Task.sleep(nanoseconds: 12_000_000_000) // systemd restarts it after 5 s
+            await hermesConnect()
+        } catch {
+            toast = describe(error)
         }
     }
 

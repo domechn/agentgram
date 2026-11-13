@@ -19,6 +19,7 @@ App/Views/               SwiftUI views
 App/Platform.swift       Keychain, notifications, pasteboard (AppKit-only bits)
 App/AgentGramApp.swift   scenes, menu commands, menu-bar extra
 project.yml              XcodeGen spec (no hand-written pbxproj)
+scripts/appcast.py       release tooling: build number, update signature, appcast.xml
 ```
 
 `AgentCore` has no dependencies, so its tests run anywhere (`swift test --package-path Core`). `App/Store` avoids
@@ -174,11 +175,13 @@ profile's live runs), `gateway.restart`, `models.list`, `toolsets.list`, `chat.s
 `run.stop`, `run.steer`, `approval.respond`, `sessions.list`, `session.messages`,
 `kanban.boards|list|show|create|assign|comment|complete|block|unblock`, `groups.list|save|delete`,
 `group.send` (stream), `group.history`, `file.put`, `files.list`, `files.get`, `activity`,
-`jobs.list|create|update|delete|pause|resume|run|output`.
+`jobs.list|create|update|delete|pause|resume|run|output`, `bridge.update`.
 Live refresh is polling (profiles every 60 s, the board every 15 s and schedules every 30 s
 while visible); there is no push channel, so there is no `status.watch`. Bot messages are sent
-with `disable_notification`. `hello` reports the bridge version; an app that needs a newer
-bridge says so in a banner instead of failing on unknown ops.
+with `disable_notification`. `hello` reports the bridge version and, from 0.3.0, the git
+checkout it was installed from (`source`) and whether it can update itself (`updatable`); an
+app that needs a newer bridge says so in a banner, with the command to run, instead of failing
+on unknown ops.
 
 ### Bridge (`hermes-bridge/bridge.py`)
 
@@ -214,6 +217,21 @@ Library (bridge 0.2.1): `files.list` without a profile returns every profile's i
 workspace files plus the kanban workspaces in one reply (newest 500), each tagged with its
 owner and source. v0.2.0 asked once per profile, in sequence, and drew nothing but a spinner
 until the last answer: with a dozen profiles the Library looked like it never opened.
+
+Self-update (bridge 0.3.0, `bridge.update`): Settings shows `bridge X.Y.Z (latest A.B.C)`,
+where "latest" is the app's own version (app and bridge are released together; a test keeps
+the two version strings equal). The op runs only when all of this holds, otherwise the app
+shows the manual command: `install.sh` ran from a git checkout (it writes `AG_SOURCE` to the
+env file), the checkout's `origin` is this repository over HTTPS, and the bridge's user owns
+the installed file. Then: `git pull --ff-only` in the checkout, copy its `bridge.py` next to
+the installed one, run the copy with `--version` (a file that does not start is discarded and
+the running bridge stays), rename it over the installed file, answer, exit; systemd
+(`Restart=always`) starts the new code. The request left in Telegram is older than the new
+process and is dropped by the replay check. There is one principal, the allow-listed user, so
+"admin only" is the same sealed-frame check as every op; the op is in the audit log.
+It trusts what the manual path trusts (GitHub over TLS, the `main` branch) and runs as the
+Hermes user rather than root. The installed file becomes writable by that user, which gives
+nothing away: agents and the bridge already share that user, and with it the bridge's key.
 
 ### App
 
@@ -271,6 +289,57 @@ until the last answer: with a dozen profiles the Library looked like it never op
   talks to stays on loopback behind its own keys.
 - Not protected: metadata, a compromised host or Mac, and files the agents themselves send to
   third parties.
+- Updates: whoever can publish a release in this repository can change the feed, but not make
+  an installed app accept an archive: that takes the private update key. Whoever holds that
+  key and can publish (or tamper with the download) can run code as the user on every Mac
+  that updates. The bridge's self-update pulls unsigned code from this repository's `main`,
+  exactly as the manual update does.
+
+## Updates (v0.3)
+
+The app updates itself with [Sparkle 2](https://sparkle-project.org) (SwiftPM, pinned to
+2.10.1), from the GitHub releases of this repository. There is no Developer ID: builds are
+ad-hoc signed and not notarized, and the design rests on Sparkle's EdDSA signatures instead.
+
+What was read in Sparkle's source (2.10.1) to decide this works without a certificate:
+
+- `SUUpdateValidator`: an update is accepted when the archive's ed25519 signature verifies
+  against the **installed** app's `SUPublicEDKey` and, if the new app is code signed, that
+  signature is valid. A matching Developer ID is only the alternative to a valid EdDSA
+  signature (it is what key rotation falls back on). "If no Apple Code Signing certificate is
+  available, adhoc signing can be used at minimum."
+- `SUCodeSigningVerifier.validateConnection`: the app and the `Autoupdate` helper only pin each
+  other's team ID when they have one. Sparkle's binaries ship with Sparkle's own signature, so
+  an ad-hoc app must re-sign them ad hoc or the installer connection is refused. CI therefore
+  signs inside out (`Installer.xpc`, `Downloader.xpc`, `Autoupdate`, `Updater.app`, each
+  framework, the app; `--deep` only for verifying) and asserts every piece is ad-hoc signed.
+- `SUPlainInstaller`: the installer removes the quarantine attribute from the new app before
+  it is moved into place, so Gatekeeper does not block the relaunch.
+- The app is not sandboxed, so Sparkle's XPC services are not used and need no entitlements.
+
+Pieces:
+
+- `App/Info.plist`: `SUFeedURL` (`…/releases/latest/download/appcast.xml`, no separate feed
+  host), `SUPublicEDKey`, `SUEnableAutomaticChecks`, daily `SUScheduledCheckInterval`. Xcode
+  merges it with the generated Info.plist.
+- `App/Platform.swift` `Updater`: one `SPUStandardUpdaterController`, started at launch.
+  Settings → Updates and the "Check for Updates…" menu item drive it; the update prompt,
+  release notes and progress are Sparkle's standard windows.
+- `scripts/appcast.py` (stdlib + `cryptography`, unit-tested): the build number
+  (`0.3.1 → 301`; Sparkle compares `CFBundleVersion`, so it must grow), the release notes
+  (the version's section of `CHANGELOG.md`), the signature (plain ed25519 over the archive
+  bytes, base64: what Sparkle's `sign_update` produces), `appcast.xml` (one item: version,
+  short version, `minimumSystemVersion` 15.0, length, `edSignature`, notes as Markdown), and
+  `verify`, which checks a feed and its archive against the committed public key.
+- The key pair was generated with Python `cryptography` in Sparkle's format (base64 of the
+  32-byte seed; base64 of the raw public key). The private half is the Actions secret
+  `SPARKLE_ED_PRIVATE_KEY` plus one file on the maintainer's machine, nowhere else.
+
+Limits: the in-app update itself (prompt, download, install, relaunch) cannot be exercised in
+CI or on Linux; what is tested is every input to it. macOS 13+ may ask the user to allow
+AgentGram under App Management the first time it replaces itself. A translocated app (run
+from the disk image, or still quarantined) cannot update. Rotating the key needs a manual
+reinstall by every user: without a Developer ID there is no second trust anchor.
 
 ## Credentials and data
 
@@ -278,7 +347,8 @@ until the last answer: with a dozen profiles the Library looked like it never op
   `AgentGram`), filled in by the first-run screen. Never in the repo or the binary.
 - TDLib database and files: `~/Library/Application Support/AgentGram/tdlib`.
 - Bridge bot `@username` in `UserDefaults`, the shared key in the Keychain (`bridge_key`).
-- No telemetry, no network calls other than TDLib's.
+- No telemetry. Network calls: TDLib's, and Sparkle fetching the appcast and update archive
+  from GitHub (no system profile is sent).
 
 ## Keyboard
 
@@ -292,8 +362,11 @@ switcher / search / workspace panel / reply.
 
 Every push runs the bridge's Python tests on Linux. The macOS job runs only for a `v*` tag or
 a manual dispatch (macOS minutes bill 10x on private repos): `swift test` → `xcodegen` →
-`xcodebuild` (Release, ad-hoc signed, SwiftPM checkout cached) → launch smoke test → `hdiutil`
-DMG → the release for the `MARKETING_VERSION` in `project.yml`, which a pushed tag must match.
+`xcodebuild` (Release, ad-hoc signed, SwiftPM checkout cached) → inside-out ad-hoc signing →
+launch smoke test → `hdiutil` DMG and `ditto` zip (unpacked again and verified) → signed
+`appcast.xml`, cross-checked with Sparkle's own `sign_update --verify` → the release for the
+`MARKETING_VERSION` in `project.yml`, which a pushed tag must match. The signing key and the
+release notes are checked in the first minute, before the long build.
 
 ## Known shortcuts
 

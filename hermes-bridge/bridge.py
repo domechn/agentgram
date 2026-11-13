@@ -12,6 +12,7 @@ docs/DESIGN.md "Wire protocol". Config comes from the environment:
   HERMES_API     default http://127.0.0.1:8642
   AG_STATE       default $HERMES_HOME/agentgram-bridge
   AG_TG_API      default https://api.telegram.org      (tests point this at a fake)
+  AG_SOURCE      the git checkout install.sh ran from; enables bridge.update
 """
 import base64
 import json
@@ -32,7 +33,7 @@ from zoneinfo import ZoneInfo
 
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
-VERSION = "0.2.1"
+VERSION = "0.3.0"
 PREFIX = "AG1."
 AAD = b"AG1"
 TEXT_LIMIT = 4096        # Telegram message length
@@ -45,6 +46,8 @@ NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 JOB_RE = re.compile(r"^[a-f0-9]{12}$")   # Hermes cron job ids
 SKIP_DIRS = {"node_modules", "__pycache__"}
 WALK_LIMIT = 5000        # files looked at per folder tree when listing
+# bridge.update pulls only from here: the same place the manual update gets its code from.
+SOURCE_URLS = {"https://github.com/domechn/agentgram", "https://github.com/domechn/agentgram.git"}
 
 
 class BridgeError(Exception):
@@ -210,6 +213,9 @@ class Bridge:
         self.runs = {}    # run id -> profile, for profile.stop
         self.stopping = False
         self.poll = int(env.get("AG_POLL_SECONDS", "50"))
+        self.source = env.get("AG_SOURCE", "")   # the checkout install.sh ran from, if it was one
+        self.path = Path(__file__).resolve()     # the installed copy bridge.update replaces
+        self.exit = os._exit                     # under systemd (Restart=always) this is a restart
 
     # -- plumbing
 
@@ -344,12 +350,13 @@ class Bridge:
         except Exception:
             return  # not ours, forged, or replayed: say nothing
         op, args, rid = str(req.get("op")), req.get("args") or {}, req["id"]
-        write = op in WRITES
+        write, restart = op in WRITES, False
         try:
             handler = OPS.get(op)
             if handler is None:
                 raise BridgeError(f"unknown op: {op}")
             data = handler(self, args, Ctx(self, chat, rid, doc))
+            restart = op == "bridge.update" and data["updated"]   # even if the reply below fails
             if data is not SENT:
                 self.reply(chat, {"v": 1, "re": rid, "ok": True, "data": data})
             if write:
@@ -367,6 +374,35 @@ class Bridge:
                 self.tg.call("deleteMessage", chat_id=chat, message_id=msg["message_id"])
             except BridgeError:
                 pass
+            if restart:   # bridge.update has answered; the new code starts with the restart
+                self.exit(0)
+
+    # -- self-update
+
+    def git(self, *args, timeout=120) -> str:
+        try:
+            p = subprocess.run(["git", "-C", self.source, *args], capture_output=True, text=True, timeout=timeout,
+                               stdin=subprocess.DEVNULL, env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
+        except (OSError, subprocess.TimeoutExpired):
+            raise BridgeError(f"git {args[0]} could not run or timed out") from None
+        if p.returncode != 0:
+            raise BridgeError((p.stderr or p.stdout).strip()[-400:] or f"git {args[0]} failed")
+        return p.stdout.strip()
+
+    def not_updatable(self) -> str:
+        """Why bridge.update is refused, or "" when this install can update itself: it came from
+        a git checkout of the AgentGram repository and its user may replace the installed file."""
+        if not self.source or not (Path(self.source) / ".git").exists():
+            return "it was not installed from a git checkout"
+        if not os.access(self.path.parent, os.W_OK):
+            return "its files belong to another user (run install.sh once more)"
+        try:
+            url = self.git("remote", "get-url", "origin", timeout=10)
+        except BridgeError:
+            return "the checkout has no origin"
+        if url.rstrip("/") not in SOURCE_URLS:
+            return "the checkout's origin is not the AgentGram repository"
+        return ""
 
     # -- agent turns
 
@@ -557,7 +593,36 @@ def op_hello(b, args, ctx):
     except Exception:
         api = False
     version = b.hermes("--version", check=False).splitlines()
-    return {"bridge": VERSION, "hermes": version[0] if version else "", "api": api}
+    return {"bridge": VERSION, "hermes": version[0] if version else "", "api": api,
+            "source": b.source, "updatable": not b.not_updatable()}
+
+
+def op_bridge_update(b, args, ctx):
+    """Fast-forwards the checkout this bridge was installed from and installs its bridge.py over
+    the running one. The process then exits and systemd starts the new code."""
+    why = b.not_updatable()
+    if why:
+        raise BridgeError(f"this bridge cannot update itself: {why}")
+    b.git("pull", "--ff-only")
+    new = b.path.with_name(".bridge.py.new")
+    new.write_bytes((Path(b.source) / "hermes-bridge" / "bridge.py").read_bytes())
+    try:
+        if new.read_bytes() == b.path.read_bytes():
+            return {"version": VERSION, "updated": False}
+        # The copy must at least start before it replaces the bridge that can still be reached.
+        try:
+            p = subprocess.run([sys.executable, str(new), "--version"], capture_output=True, text=True,
+                               timeout=30, stdin=subprocess.DEVNULL)
+            version = p.stdout.strip() if p.returncode == 0 else ""
+        except (OSError, subprocess.TimeoutExpired):
+            version = ""
+        if not re.fullmatch(r"\d+(\.\d+){1,3}", version):
+            raise BridgeError("the pulled bridge.py does not start; the running bridge was kept")
+        os.chmod(new, 0o755)
+        os.replace(new, b.path)
+    finally:
+        new.unlink(missing_ok=True)
+    return {"version": version, "updated": True}   # handle() restarts once this is sent
 
 
 def profile_model(config_text: str):
@@ -1058,15 +1123,20 @@ OPS = {
     "jobs.list": op_jobs_list, "jobs.create": op_jobs_create, "jobs.update": op_jobs_update,
     "jobs.delete": op_jobs_delete, "jobs.pause": _job_action("pause"), "jobs.resume": _job_action("resume"),
     "jobs.run": _job_action("run"), "jobs.output": op_jobs_output,
+    "bridge.update": op_bridge_update,
 }
 WRITES = {"profile.create", "profile.clone", "profile.delete", "profile.stop", "gateway.restart",
           "run.stop", "run.steer", "approval.respond", "kanban.create", "kanban.assign", "kanban.comment",
           "kanban.complete", "kanban.block", "kanban.unblock", "groups.save", "groups.delete", "file.put",
           "chat.send", "group.send",
-          "jobs.create", "jobs.update", "jobs.delete", "jobs.pause", "jobs.resume", "jobs.run"}
+          "jobs.create", "jobs.update", "jobs.delete", "jobs.pause", "jobs.resume", "jobs.run",
+          "bridge.update"}
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--version"]:
+        print(VERSION)
+        raise SystemExit(0)
     missing = [k for k in ("AG_BOT_TOKEN", "AG_USER_ID", "AG_KEY") if not os.environ.get(k)]
     if missing:
         raise SystemExit("missing environment: " + ", ".join(missing))

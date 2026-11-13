@@ -15,10 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Bridge tests
+      - name: Bridge and release-script tests
         run: |
           python3 -c 'import cryptography' || python3 -m pip install cryptography
-          cd hermes-bridge && python3 -m unittest -v
+          (cd hermes-bridge && python3 -m unittest -v)
+          (cd scripts && python3 -m unittest -v)
   # macOS minutes bill 10x, so the app is built only for a release: a v* tag or a manual dispatch.
   build:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
@@ -31,12 +32,26 @@ jobs:
       - uses: actions/checkout@v4
       - name: Version
         run: |
-          TAG=v$(sed -n 's/.*MARKETING_VERSION: *//p' project.yml)
+          VERSION=$(sed -n 's/.*MARKETING_VERSION: *//p' project.yml)
+          TAG=v$VERSION
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           # A pushed tag must match project.yml, or the DMG would be released under the wrong version.
           if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$TAG" ]; then
             echo "::error::tag $GITHUB_REF_NAME does not match project.yml version $TAG"; exit 1
           fi
+      - name: Release inputs
+        # Before the long build: everything the release needs at its end must already be there.
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          python3 -m venv .venv && .venv/bin/pip install -q cryptography
+          (cd scripts && ../.venv/bin/python -m unittest)
+          # The updater compares build numbers, so each release gets one derived from its version.
+          BUILD=$(.venv/bin/python scripts/appcast.py build "$VERSION")
+          echo "BUILD=$BUILD" >> "$GITHUB_ENV"
+          .venv/bin/python scripts/appcast.py notes "$VERSION" > notes.md
+          .venv/bin/python scripts/appcast.py key
       - name: Unit tests
         run: swift test --package-path Core
       - name: Generate project
@@ -55,13 +70,35 @@ jobs:
           xcodebuild -project AgentGram.xcodeproj -scheme AgentGram -configuration Release \
             -derivedDataPath build -clonedSourcePackagesDirPath SourcePackages \
             -destination 'generic/platform=macOS' \
-            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- build \
+            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- \
+            CURRENT_PROJECT_VERSION="$BUILD" build \
             | grep --line-buffered -E '(error|warning):|^(SwiftDriver |Ld |Resolve|Fetching|Computing|\*\* BUILD)'
       - name: Sign
         run: |
           APP=build/Build/Products/Release/AgentGram.app
-          codesign --force --deep --sign - "$APP"
+          plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Contents/Info.plist"; }
+          test "$(plist CFBundleShortVersionString)" = "$VERSION"
+          test "$(plist CFBundleVersion)" = "$BUILD"
+          test "$(plist SUFeedURL)" = "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml"
+          test "$(plist SUPublicEDKey)" = "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' App/Info.plist)"
+          # Ad-hoc signing, inside out, one piece of code at a time (--deep is for verifying).
+          # Sparkle's helpers ship with Sparkle's own signature and have to be re-signed like
+          # the app: Autoupdate refuses the app's connection when their team IDs differ, and
+          # the updater rejects an update whose code signature does not verify.
+          FRAMEWORKS="$APP/Contents/Frameworks"
+          SPARKLE="$FRAMEWORKS/Sparkle.framework/Versions/B"
+          codesign --force --sign - "$SPARKLE/XPCServices/Installer.xpc"
+          codesign --force --sign - --preserve-metadata=entitlements "$SPARKLE/XPCServices/Downloader.xpc"
+          codesign --force --sign - "$SPARKLE/Autoupdate"
+          codesign --force --sign - "$SPARKLE/Updater.app"
+          for item in "$FRAMEWORKS"/*; do codesign --force --sign - "$item"; done
+          codesign --force --sign - "$APP"
           codesign --verify --deep --strict "$APP"
+          for item in "$SPARKLE/XPCServices/Installer.xpc" "$SPARKLE/XPCServices/Downloader.xpc" \
+                      "$SPARKLE/Autoupdate" "$SPARKLE/Updater.app" "$FRAMEWORKS/Sparkle.framework" "$APP"; do
+            codesign --verify --strict "$item"
+            codesign -dvv "$item" 2>&1 | grep -q 'Signature=adhoc' || { echo "::error::not ad-hoc signed: $item"; exit 1; }
+          done
           lipo -archs "$APP/Contents/MacOS/AgentGram"
           # The app icon must have made it into the bundle.
           test -s "$APP/Contents/Resources/AppIcon.icns"
@@ -95,18 +132,45 @@ jobs:
           fi
           retry hdiutil convert rw.dmg -format UDZO -ov -o AgentGram.dmg
           test -s AgentGram.dmg
+          # The updater's archive. Unpacked the way Sparkle does it, the app must still verify.
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "AgentGram-$VERSION.zip"
+          mkdir unzipped && ditto -x -k "AgentGram-$VERSION.zip" unzipped
+          codesign --verify --deep --strict unzipped/AgentGram.app
+      - name: Appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          ZIP=AgentGram-$VERSION.zip
+          # Signs the archive, writes the feed and refuses to write one that does not verify
+          # against the public key in the app.
+          .venv/bin/python scripts/appcast.py make --version "$VERSION" --archive "$ZIP" --notes notes.md --out appcast.xml
+          cat appcast.xml
+          # Sparkle's own tool, with the verify routine the updater uses, must agree.
+          TOOL=$(find SourcePackages/artifacts -name sign_update -type f | head -1)
+          if [ -n "$TOOL" ]; then
+            SIGNATURE=$(sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p' appcast.xml)
+            printf '%s\n' "$SPARKLE_ED_PRIVATE_KEY" | "$TOOL" --verify --ed-key-file - "$ZIP" "$SIGNATURE"
+            echo "Sparkle's sign_update accepts the signature."
+          else
+            echo "::warning::sign_update not found in the Sparkle package; signature checked with Python only"
+          fi
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES="Ad-hoc signed build of $GITHUB_SHA. Not notarized: after copying to Applications run xattr -dr com.apple.quarantine /Applications/AgentGram.app"
+          ZIP=AgentGram-$VERSION.zip
+          # The changelog section is the release body and the notes in the appcast.
+          { cat notes.md
+            echo; echo "---"
+            echo "Ad-hoc signed build of $GITHUB_SHA, not notarized. First install: download AgentGram.dmg, drag the app to Applications, then run \`xattr -dr com.apple.quarantine /Applications/AgentGram.app\`. From 0.3.0 on the app updates itself; $ZIP and appcast.xml are what its updater downloads."
+          } > body.md
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             # The tag that triggered this run stays; only a stale release on it is replaced.
             gh release delete "$TAG" --yes || true
-            gh release create "$TAG" AgentGram.dmg --verify-tag --title "AgentGram ${TAG#v}" --notes "$NOTES"
+            gh release create "$TAG" AgentGram.dmg "$ZIP" appcast.xml --verify-tag --title "AgentGram $VERSION" --notes-file body.md
           else
             # Manual dispatch: (re)create the current version's release at the built commit.
             gh release delete "$TAG" --cleanup-tag --yes || true
-            gh release create "$TAG" AgentGram.dmg --target "$GITHUB_SHA" \
-              --title "AgentGram ${TAG#v}" --notes "$NOTES"
+            gh release create "$TAG" AgentGram.dmg "$ZIP" appcast.xml --target "$GITHUB_SHA" \
+              --title "AgentGram $VERSION" --notes-file body.md
           fi

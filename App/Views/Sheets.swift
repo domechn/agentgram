@@ -200,6 +200,7 @@ struct SettingsSheet: View {
                 if connecting { ProgressView().controlSize(.small) }
                 statusLine
             }
+            if store.hermes.isConnected { bridgeLine }
             if store.hermes.isConnected && !store.hermes.apiEnabled {
                 Text("The Hermes API server is off, so bots cannot answer yet. On the host run: sudo ./install.sh --enable-api")
                     .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
@@ -214,6 +215,8 @@ struct SettingsSheet: View {
                         Text("One gateway serves every bot, so this interrupts all running turns.")
                     }
             }
+            Divider()
+            UpdatesSection()
             Divider()
             Text("Composer").font(.headline)
             Picker("Send with", selection: $enterSends) {
@@ -245,6 +248,27 @@ struct SettingsSheet: View {
         .onAppear { bot = store.bridgeBot.isEmpty ? "" : "@" + store.bridgeBot }
     }
 
+    /// The bridge on the host against the one released with this app, and the way to update it.
+    @ViewBuilder private var bridgeLine: some View {
+        let hermes = store.hermes
+        HStack(spacing: 8) {
+            Text("bridge \(hermes.bridgeVersion) (latest \(HermesState.latestBridge))")
+                .font(.caption).foregroundStyle(.secondary)
+            if hermes.bridgeUpdateAvailable && hermes.bridgeUpdatable {
+                Button("Update Bridge") { Task { await store.bridgeUpdate() } }
+                    .controlSize(.small)
+                    .disabled(hermes.bridgeUpdating)
+                    .help("Pulls the bridge's git checkout on the host and restarts the bridge. Turns that are running are interrupted.")
+                if hermes.bridgeUpdating { ProgressView().controlSize(.small) }
+            }
+        }
+        if hermes.bridgeUpdateAvailable && !hermes.bridgeUpdatable {
+            Text("To update the bridge, on the host run: \(hermes.bridgeUpgradeHint)")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+        }
+    }
+
     @ViewBuilder private var statusLine: some View {
         switch store.hermes.status {
         case .off: Text("Not connected").font(.caption).foregroundStyle(.secondary)
@@ -252,5 +276,35 @@ struct SettingsSheet: View {
         case .connected(let version): Text("Connected · \(version)").font(.caption).foregroundStyle(.green).lineLimit(1)
         case .failed(let reason): Text(reason).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// Settings → Updates. Sparkle keeps these settings in the user defaults; the view mirrors them.
+struct UpdatesSection: View {
+    @State private var automaticChecks = true
+    @State private var automaticInstall = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Updates").font(.headline)
+            HStack(spacing: 8) {
+                Text("AgentGram \(Updater.appVersion) · stable channel").font(.callout)
+                Spacer()
+                Button("Check for Updates…") { Updater.sparkle.checkForUpdates() }
+            }
+            Toggle("Check for updates automatically (daily)", isOn: $automaticChecks)
+            Toggle("Download and install updates automatically", isOn: $automaticInstall)
+                .disabled(!automaticChecks)
+            // Re-read while the sheet is open: a check started above finishes in Sparkle's window.
+            TimelineView(.periodic(from: .now, by: 5)) { _ in
+                Text("Last checked: \(Updater.lastChecked)").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onAppear {
+            automaticChecks = Updater.sparkle.automaticallyChecksForUpdates
+            automaticInstall = Updater.sparkle.automaticallyDownloadsUpdates
+        }
+        .onChange(of: automaticChecks) { Updater.sparkle.automaticallyChecksForUpdates = automaticChecks }
+        .onChange(of: automaticInstall) { Updater.sparkle.automaticallyDownloadsUpdates = automaticInstall }
     }
 }

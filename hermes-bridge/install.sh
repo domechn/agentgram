@@ -81,14 +81,21 @@ user_id=${AG_USER_ID:-$(get AG_USER_ID)}
 case "$user_id" in ''|*[!0-9]*) echo "user id must be a number" >&2; exit 1 ;; esac
 key=$(get AG_KEY); [ -n "$key" ] || key=$(new_key)
 
-install -d -m 755 "$DEST"
-install -m 755 "$HERE/bridge.py" "$DEST/bridge.py"
+# Run from a git checkout, the bridge can update itself when the app asks (bridge.update:
+# git pull --ff-only there, then replace its own file), so its user owns the installed copy.
+# That user already runs the bridge and holds its key. Any other install stays root-owned
+# and is updated by running this script again.
+source_dir=$(as_user git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || true)
+owner=$(id -un); [ -z "$source_dir" ] || owner=$RUN_USER
+install -d -m 755 -o "$owner" "$DEST"
+install -m 755 -o "$owner" "$HERE/bridge.py" "$DEST/bridge.py"
 ( umask 077; cat > "$ENV_FILE" <<EOF
 AG_BOT_TOKEN=$token
 AG_USER_ID=$user_id
 AG_KEY=$key
 HERMES_HOME=$HERMES_HOME
 HERMES_BIN=$hermes_bin
+AG_SOURCE=$source_dir
 EOF
 )
 cat > "$UNIT" <<EOF

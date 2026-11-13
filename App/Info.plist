@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- Only the Sparkle keys live here; Xcode generates the rest (GENERATE_INFOPLIST_FILE). -->
+<dict>
+	<key>SUFeedURL</key>
+	<string>https://github.com/domechn/agentgram/releases/latest/download/appcast.xml</string>
+	<!-- Public half of the update signing key. The private half is not in this repository. -->
+	<key>SUPublicEDKey</key>
+	<string>mvI+DNNorLfGQKFq3RTQ2TRg7s61Str72Igd6VkO7sE=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+</dict>
+</plist>

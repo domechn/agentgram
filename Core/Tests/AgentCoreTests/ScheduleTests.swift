@@ -100,6 +100,22 @@ final class ScheduleTests: XCTestCase {
         XCTAssertTrue(versionIsOlder("", than: "0.2.1"))
     }
 
+    func testBridgeUpgradeCommand() throws {
+        XCTAssertEqual(bridgeUpgradeCommand(source: "/home/hermes/agentgram"),
+                       "cd /home/hermes/agentgram && git pull --ff-only && sudo hermes-bridge/install.sh")
+        XCTAssertEqual(bridgeUpgradeCommand(source: nil), "cd ~/agentgram && git pull --ff-only && sudo hermes-bridge/install.sh")
+        XCTAssertEqual(bridgeUpgradeCommand(source: ""), bridgeUpgradeCommand(source: nil))
+        XCTAssertTrue(bridgeUpgradeCommand(source: "/srv/my repo/it's").hasPrefix("cd '/srv/my repo/it'\\''s' && "))
+        // Bridge 0.2.1 says nothing about its source; 0.3.0 does.
+        let old = try JSONDecoder().decode(Hello.self, from: Data(#"{"bridge":"0.2.1","hermes":"v","api":true}"#.utf8))
+        XCTAssertNil(old.updatable)
+        let new = try JSONDecoder().decode(Hello.self, from: Data(#"{"bridge":"0.3.0","hermes":"v","api":true,"source":"/x","updatable":true}"#.utf8))
+        XCTAssertEqual([new.source, new.updatable.map { "\($0)" }], ["/x", "true"])
+        let done = try JSONDecoder().decode(BridgeUpdated.self, from: Data(#"{"version":"0.3.1","updated":true}"#.utf8))
+        XCTAssertEqual(done.version, "0.3.1")
+        XCTAssertTrue(done.updated)
+    }
+
     func testLibraryFilter() {
         let files = [
             HostFile(path: "/h/profiles/team-cro/workspace/report.md", name: "report.md", size: 1, mtime: 3, profile: "team-cro", source: "workspace"),

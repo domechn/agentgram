@@ -57,7 +57,7 @@ struct SchedulesView: View {
                                        description: Text("Open Settings (⌘,) to connect to your Hermes bridge."))
             } else if hermes.bridgeOutdated {
                 ContentUnavailableView("Update the bridge", systemImage: "arrow.down.circle",
-                                       description: Text("Schedules need hermes-bridge \(HermesState.requiredBridge) or newer; the host runs \(hermes.bridgeVersion). On the host: git pull, then sudo ./install.sh"))
+                                       description: Text("Schedules need hermes-bridge \(HermesState.requiredBridge) or newer; the host runs \(hermes.bridgeVersion). On the host run: \(hermes.bridgeUpgradeHint)"))
             } else {
                 if let error = hermes.jobsError {
                     ErrorBanner(text: error) { Task { await store.jobsRefresh() } }

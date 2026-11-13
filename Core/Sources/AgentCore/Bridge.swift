@@ -107,6 +107,26 @@ public struct Hello: Decodable {
     public var bridge: String
     public var hermes: String
     public var api: Bool
+    // Bridge 0.3.0+: the git checkout it was installed from, and whether `bridge.update` works.
+    public var source: String?
+    public var updatable: Bool?
+}
+
+/// Reply of `bridge.update`.
+public struct BridgeUpdated: Decodable {
+    public var version: String
+    public var updated: Bool
+}
+
+/// The command that updates hermes-bridge on the host. `source` is the checkout the bridge was
+/// installed from; a bridge too old to report it gets the path the README's install steps leave.
+public func bridgeUpgradeCommand(source: String?) -> String {
+    var dir = "~/agentgram"
+    if let source, !source.isEmpty {
+        let plain = source.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "/._-".contains($0)) }
+        dir = plain ? source : "'" + source.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+    return "cd \(dir) && git pull --ff-only && sudo hermes-bridge/install.sh"
 }
 
 public struct HermesProfile: Decodable, Equatable, Identifiable {
