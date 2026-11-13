@@ -1,0 +1,16 @@
+: open
+
+id: 0
+data: {"event": "tool.started", "run_id": "run_0c8a778c0c1c46699336d46f9a63bf73", "timestamp": 1794556349.862416, "tool": "terminal", "preview": "echo hello-from-hermes", "tool_call_id": "tooluse_78tQsUEPkFoAzyDOeMySO6", "seq": 0}
+
+id: 1
+data: {"event": "tool.completed", "run_id": "run_0c8a778c0c1c46699336d46f9a63bf73", "timestamp": 1794556349.9860675, "tool": "terminal", "duration": 0, "error": false, "tool_call_id": "tooluse_78tQsUEPkFoAzyDOeMySO6", "preview": "", "seq": 1}
+
+id: 2
+data: {"event": "message.delta", "run_id": "run_0c8a778c0c1c46699336d46f9a63bf73", "timestamp": 1794556350.9163516, "delta": "\n\nhello-from-hermes", "seq": 2}
+
+id: 3
+data: {"event": "run.completed", "run_id": "run_0c8a778c0c1c46699336d46f9a63bf73", "timestamp": 1794556351.0157642, "output": "hello-from-hermes", "usage": {"input_tokens": 36239, "output_tokens": 66, "total_tokens": 36305}, "runtime": {"provider": "", "model": "", "route_source": "global"}, "completed": true, "partial": false, "interrupted": false, "seq": 3}
+
+: stream closed
+

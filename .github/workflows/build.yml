@@ -1,0 +1,109 @@
+name: build
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # Cheap (1x) job: runs on every push.
+  bridge:
+    runs-on: user-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bridge tests
+        run: |
+          python3 -c 'import cryptography' || python3 -m pip install cryptography
+          cd hermes-bridge && python3 -m unittest -v
+  # macOS minutes bill 10x, so the app is built only for a release: a v* tag or a manual dispatch.
+  build:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        run: |
+          TAG=v$(sed -n 's/.*MARKETING_VERSION: *//p' project.yml)
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          # A pushed tag must match project.yml, or the DMG would be released under the wrong version.
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$TAG" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match project.yml version $TAG"; exit 1
+          fi
+      - name: Unit tests
+        run: swift test --package-path Core
+      - name: Generate project
+        run: (which xcodegen || brew install xcodegen) && xcodegen generate
+      - name: Cache Swift packages
+        # TDLibKit's checkout (a large binary framework) is most of the dependency fetch.
+        uses: actions/cache@v4
+        with:
+          path: SourcePackages
+          key: spm-${{ hashFiles('project.yml') }}
+          restore-keys: spm-
+      - name: Build
+        run: |
+          xcodebuild -project AgentGram.xcodeproj -scheme AgentGram -configuration Release \
+            -derivedDataPath build -clonedSourcePackagesDirPath SourcePackages \
+            -destination 'generic/platform=macOS' \
+            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- -quiet build
+      - name: Sign
+        run: |
+          APP=build/Build/Products/Release/AgentGram.app
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          lipo -archs "$APP/Contents/MacOS/AgentGram"
+          # The app icon must have made it into the bundle.
+          test -s "$APP/Contents/Resources/AppIcon.icns"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP/Contents/Info.plist")" = AppIcon
+      - name: Launch smoke test
+        run: |
+          APP=build/Build/Products/Release/AgentGram.app
+          # The app must stay up and TDLib must initialise its database (fake credentials are
+          # enough for that; no account is involved until a phone number is entered).
+          TG_API_ID=1 TG_API_HASH=smoke "$APP/Contents/MacOS/AgentGram" & pid=$!
+          DB="$HOME/Library/Application Support/AgentGram/tdlib/td.binlog"
+          for i in $(seq 15); do sleep 1; kill -0 $pid; test -f "$DB" && break; done
+          test -f "$DB"
+          sleep 2; kill -0 $pid
+          kill $pid
+      - name: Package
+        run: |
+          APP=build/Build/Products/Release/AgentGram.app
+          mkdir dist && cp -R "$APP" dist/ && ln -s /Applications dist/Applications
+          cp "$APP/Contents/Resources/AppIcon.icns" dist/.VolumeIcon.icns
+          # hdiutil is flaky on hosted runners ("Resource busy"), so retry.
+          retry() { for i in 1 2 3; do "$@" && return; sleep 5; done; return 1; }
+          retry hdiutil create -volname AgentGram -srcfolder dist -ov -format UDRW rw.dmg
+          # The volume icon needs the custom-icon flag on the volume root, which only a
+          # mounted read-write image can take. Best effort: the DMG ships either way.
+          if retry hdiutil attach rw.dmg -mountpoint mnt -nobrowse; then
+            SetFile -a C mnt || echo "::warning::could not set DMG volume icon"
+            retry hdiutil detach mnt
+          else
+            echo "::warning::could not mount DMG to set volume icon"
+          fi
+          retry hdiutil convert rw.dmg -format UDZO -ov -o AgentGram.dmg
+          test -s AgentGram.dmg
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Ad-hoc signed build of $GITHUB_SHA. Not notarized: after copying to Applications run xattr -dr com.apple.quarantine /Applications/AgentGram.app"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            # The tag that triggered this run stays; only a stale release on it is replaced.
+            gh release delete "$TAG" --yes || true
+            gh release create "$TAG" AgentGram.dmg --verify-tag --title "AgentGram ${TAG#v}" --notes "$NOTES"
+          else
+            # Manual dispatch: (re)create the current version's release at the built commit.
+            gh release delete "$TAG" --cleanup-tag --yes || true
+            gh release create "$TAG" AgentGram.dmg --target "$GITHUB_SHA" \
+              --title "AgentGram ${TAG#v}" --notes "$NOTES"
+          fi

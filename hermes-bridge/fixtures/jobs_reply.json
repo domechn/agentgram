@@ -1,0 +1,66 @@
+{
+ "jobs": [
+  {
+   "id": "2606b6b03fc2",
+   "profile": "default",
+   "name": "team-demo-daily-summary",
+   "prompt": "",
+   "kind": "cron",
+   "expr": "5 2 * * *",
+   "minutes": 0,
+   "display": "5 2 * * *",
+   "enabled": false,
+   "state": "paused",
+   "next_run": 1792634700.0,
+   "last_run": 1792548337.440775,
+   "last_status": "ok",
+   "last_error": "",
+   "deliver": "telegram",
+   "script": "demo_daily.sh",
+   "no_agent": true
+  },
+  {
+   "id": "42e312f2c0d4",
+   "profile": "default",
+   "name": "team-ceo-daily-1000-shanghai",
+   "prompt": "(prompt removed from the fixture)",
+   "kind": "cron",
+   "expr": "0 2 * * *",
+   "minutes": 0,
+   "display": "0 2 * * *",
+   "enabled": true,
+   "state": "scheduled",
+   "next_run": 1794621600.0,
+   "last_run": 1794535268.48811,
+   "last_status": "ok",
+   "last_error": "",
+   "deliver": "origin",
+   "script": "",
+   "no_agent": false
+  },
+  {
+   "id": "96868102c566",
+   "profile": "default",
+   "name": "team-idle-watch",
+   "prompt": "(prompt removed from the fixture)",
+   "kind": "interval",
+   "expr": "",
+   "minutes": 30,
+   "display": "every 30m",
+   "enabled": true,
+   "state": "scheduled",
+   "next_run": 1794561477.752435,
+   "last_run": 1794559677.752435,
+   "last_status": "ok",
+   "last_error": "",
+   "deliver": "local",
+   "script": "idle_check.sh",
+   "no_agent": false
+  }
+ ],
+ "errors": [],
+ "offsets": {
+  "default": 0,
+  "team-ceo": 28800
+ }
+}

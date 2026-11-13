@@ -1,0 +1,70 @@
+: open
+
+id: 0
+data: {"event": "tool.started", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556360.8955812, "tool": "terminal", "preview": "rm -rf /tmp/agtest-victim", "tool_call_id": "tooluse_ZCJ1zV4bCmBQ9yBjgcqhAN", "seq": 0}
+
+id: 1
+data: {"event": "approval.request", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556362.6313987, "kind": "approval", "prompt_id": "b43efe5e8b3649b6a376594d7a396ee8", "execution_generation": 2, "command": "rm -rf /tmp/agtest-victim", "description": "delete in root path", "choices": ["once", "deny", "session", "always"], "seq": 1}
+
+: keepalive
+
+: keepalive
+
+: keepalive
+
+id: 2
+data: {"event": "approval.settled", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556393.7942245, "prompt_id": "b43efe5e8b3649b6a376594d7a396ee8", "execution_generation": 2, "seq": 2}
+
+id: 3
+data: {"event": "tool.completed", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556393.8043132, "tool": "terminal", "duration": 0, "error": true, "tool_call_id": "tooluse_ZCJ1zV4bCmBQ9yBjgcqhAN", "preview": "", "seq": 3}
+
+id: 4
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1919892, "delta": "\n\nThe command was blocked and", "seq": 4}
+
+id: 5
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1924403, "delta": " did", "seq": 5}
+
+id: 6
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.192797, "delta": " not run,", "seq": 6}
+
+id: 7
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1931002, "delta": " so `", "seq": 7}
+
+id: 8
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1933992, "delta": "/tmp/agtest", "seq": 8}
+
+id: 9
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1936798, "delta": "-victim` h", "seq": 9}
+
+id: 10
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1939616, "delta": "asn't been deleted.", "seq": 10}
+
+id: 11
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1942272, "delta": " I won't ret", "seq": 11}
+
+id: 12
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.194495, "delta": "ry or try another", "seq": 12}
+
+id: 13
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.194761, "delta": " way to rem", "seq": 13}
+
+id: 14
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.195023, "delta": "ove it. If you do", "seq": 14}
+
+id: 15
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1952908, "delta": " want it removed, tell me", "seq": 15}
+
+id: 16
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1955402, "delta": " and I'll go", "seq": 16}
+
+id: 17
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1958594, "delta": " from", "seq": 17}
+
+id: 18
+data: {"event": "message.delta", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.1961324, "delta": " there.", "seq": 18}
+
+id: 19
+data: {"event": "run.completed", "run_id": "run_871e5e3d9a9a4cfd815d107a526fa49f", "timestamp": 1794556395.3036647, "output": "The command was blocked and did not run, so `/tmp/agtest-victim` hasn't been deleted. I won't retry or try another way to remove it. If you do want it removed, tell me and I'll go from there.", "usage": {"input_tokens": 36660, "output_tokens": 131, "total_tokens": 36791}, "runtime": {"provider": "", "model": "", "route_source": "global"}, "completed": true, "partial": false, "interrupted": false, "seq": 19}
+
+: stream closed
+

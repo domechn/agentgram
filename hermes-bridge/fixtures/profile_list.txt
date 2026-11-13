@@ -1,0 +1,21 @@
+
+ Profile          Model                        Gateway      Alias        Distribution
+ ───────────────    ───────────────────────────    ───────────    ───────────    ────────────────────
+ ◆default         claude-sonnet-5-5            running      —            —
+  team-architect    claude-sonnet-5-5            running      team-architect —
+  team-backtest     claude-sonnet-5-5            running      team-backtest  —
+  team-ceo          claude-sonnet-5-5            running      team-ceo       —
+  team-chief-researcher claude-sonnet-5-5            running      team-chief-researcher —
+  team-cro          claude-sonnet-5-5            running      team-cro       —
+  team-data-eng     claude-sonnet-5-5            running      team-data-eng  —
+  team-exec-eng     claude-sonnet-5-5            running      team-exec-eng  —
+  team-frontend     claude-sonnet-5-5            running      team-frontend  —
+  team-ml           claude-sonnet-5-5            running      team-ml        —
+  team-ops          claude-sonnet-5-5            running      team-ops       —
+  team-qa           claude-sonnet-5-5            running      team-qa        —
+  team-analyst-a      claude-sonnet-5-5            running      team-analyst-a   —
+  team-analyst-b      claude-sonnet-5-5            running      team-analyst-b   —
+  team-recon-eng    claude-sonnet-5-5            running      team-recon-eng —
+  team-security     claude-sonnet-5-5            running      team-security  —
+  team-sre          claude-sonnet-5-5            running      team-sre       —
+

@@ -1,0 +1,10 @@
+claude.log
+.build/
+*.xcodeproj
+build/
+dist/
+*.dmg
+.DS_Store
+__pycache__/
+claude*.log
+BRIEF*.md

@@ -1,0 +1,104 @@
+[
+  {
+    "slug": "default",
+    "name": "Default",
+    "description": "",
+    "icon": "",
+    "color": "",
+    "default_workdir": null,
+    "project_id": null,
+    "created_at": null,
+    "archived": false,
+    "db_path": "/home/user/.hermes/kanban.db",
+    "is_current": true,
+    "counts": {
+      "done": 1
+    },
+    "total": 1
+  },
+  {
+    "slug": "command",
+    "name": "command",
+    "description": "",
+    "icon": "",
+    "color": "",
+    "default_workdir": null,
+    "project_id": null,
+    "created_at": 1794495444,
+    "archived": false,
+    "db_path": "/home/user/.hermes/kanban/boards/command/kanban.db",
+    "is_current": false,
+    "counts": {},
+    "total": 0
+  },
+  {
+    "slug": "engineering",
+    "name": "engineering",
+    "description": "",
+    "icon": "",
+    "color": "",
+    "default_workdir": null,
+    "project_id": null,
+    "created_at": 1794495446,
+    "archived": false,
+    "db_path": "/home/user/.hermes/kanban/boards/engineering/kanban.db",
+    "is_current": false,
+    "counts": {
+      "archived": 2,
+      "done": 12
+    },
+    "total": 14
+  },
+  {
+    "slug": "ops",
+    "name": "ops",
+    "description": "",
+    "icon": "",
+    "color": "",
+    "default_workdir": null,
+    "project_id": null,
+    "created_at": 1794495448,
+    "archived": false,
+    "db_path": "/home/user/.hermes/kanban/boards/ops/kanban.db",
+    "is_current": false,
+    "counts": {
+      "done": 4
+    },
+    "total": 4
+  },
+  {
+    "slug": "release-gate",
+    "name": "release-gate",
+    "description": "",
+    "icon": "",
+    "color": "",
+    "default_workdir": null,
+    "project_id": null,
+    "created_at": 1794495447,
+    "archived": false,
+    "db_path": "/home/user/.hermes/kanban/boards/release-gate/kanban.db",
+    "is_current": false,
+    "counts": {
+      "blocked": 2,
+      "done": 8
+    },
+    "total": 10
+  },
+  {
+    "slug": "research",
+    "name": "research",
+    "description": "",
+    "icon": "",
+    "color": "",
+    "default_workdir": null,
+    "project_id": null,
+    "created_at": 1794495445,
+    "archived": false,
+    "db_path": "/home/user/.hermes/kanban/boards/research/kanban.db",
+    "is_current": false,
+    "counts": {
+      "done": 8
+    },
+    "total": 8
+  }
+]

@@ -1,0 +1,258 @@
+{
+  "task": {
+    "id": "t_534e27fa",
+    "title": "Review and close demo card (kanban-empowered trial)",
+    "body": "This is a demo card created to trial the Kanban board and is explicitly marked safe to delete. There is no functional work to perform. Worker steps: (1) Confirm the card has no linked parent or child tasks and no meaningful content beyond the title. (2) If confirmed, mark the task complete with a brief note stating it was a demo placeholder and no action was needed (or archive/delete it if the board permits). (3) If any unexpected dependencies or content are found, leave a comment describing them and do not delete. Acceptance criteria: the card is closed or removed, and a short completion note records what was done.",
+    "assignee": "default",
+    "status": "done",
+    "priority": 0,
+    "tenant": null,
+    "workspace_kind": "scratch",
+    "workspace_path": "/home/user/.hermes/kanban/workspaces/t_534e27fa",
+    "branch_name": null,
+    "project_id": null,
+    "created_by": "user",
+    "created_at": 1794128680,
+    "started_at": 1794129266,
+    "completed_at": 1794129351,
+    "result": null,
+    "skills": [],
+    "max_runtime_seconds": null,
+    "max_retries": null,
+    "model_override": null,
+    "provider_override": null,
+    "session_id": null,
+    "workflow_template_id": null,
+    "current_step_key": null,
+    "completion_contract": "local-only",
+    "last_failure_error": null
+  },
+  "latest_summary": "Demo placeholder card. It has no parent or child tasks and no content beyond the demo description, so no action was needed. The earlier blocked comments about Acme payment mode (mock or pay-v2) are unrelated to this card and were not acted on.",
+  "parents": [],
+  "children": [],
+  "comments": [
+    {
+      "author": "default",
+      "body": "BLOCKED: Demo: need your decision. Which payment mode should Acme use when it is redeployed: mock or real pay-v2 on a testnet? Reply with 1 or 2.",
+      "created_at": 1794128959
+    },
+    {
+      "author": "default",
+      "body": "BLOCKED: Demo: need your decision. Which payment mode should Acme use when it is redeployed: mock or real pay-v2 on a testnet? Reply with 1 or 2.",
+      "created_at": 1794129253
+    },
+    {
+      "author": "auto-decomposer",
+      "body": "Specified — updated title, body, assignee and promoted to todo.",
+      "created_at": 1794129266
+    }
+  ],
+  "events": [
+    {
+      "kind": "created",
+      "payload": {
+        "assignee": null,
+        "status": "ready",
+        "parents": [],
+        "creator_task_id": null,
+        "tenant": null,
+        "workspace_kind": "scratch",
+        "workspace_path": null,
+        "branch_name": null,
+        "project_id": null,
+        "skills": null,
+        "goal_mode": null,
+        "model_override": null,
+        "provider_override": null
+      },
+      "created_at": 1794128680,
+      "run_id": null
+    },
+    {
+      "kind": "commented",
+      "payload": {
+        "author": "default",
+        "len": 149
+      },
+      "created_at": 1794128959,
+      "run_id": null
+    },
+    {
+      "kind": "blocked",
+      "payload": {
+        "reason": "Demo: need your decision. Which payment mode should Acme use when it is redeployed: mock or real pay-v2 on a testnet? Reply with 1 or 2.",
+        "kind": "needs_input",
+        "recurrences": 1,
+        "source_status": "ready"
+      },
+      "created_at": 1794128959,
+      "run_id": 1
+    },
+    {
+      "kind": "unblocked",
+      "payload": null,
+      "created_at": 1794129247,
+      "run_id": null
+    },
+    {
+      "kind": "commented",
+      "payload": {
+        "author": "default",
+        "len": 149
+      },
+      "created_at": 1794129253,
+      "run_id": null
+    },
+    {
+      "kind": "block_loop_detected",
+      "payload": {
+        "reason": "Demo: need your decision. Which payment mode should Acme use when it is redeployed: mock or real pay-v2 on a testnet? Reply with 1 or 2.",
+        "kind": "needs_input",
+        "recurrences": 2,
+        "source_status": "ready",
+        "limit": 2
+      },
+      "created_at": 1794129253,
+      "run_id": 2
+    },
+    {
+      "kind": "specified",
+      "payload": {
+        "changed_fields": [
+          "title",
+          "body",
+          "assignee"
+        ]
+      },
+      "created_at": 1794129266,
+      "run_id": null
+    },
+    {
+      "kind": "promoted",
+      "payload": null,
+      "created_at": 1794129266,
+      "run_id": null
+    },
+    {
+      "kind": "claimed",
+      "payload": {
+        "lock": "ip-10-42-0-110:1077",
+        "expires": 1794130166,
+        "run_id": 3
+      },
+      "created_at": 1794129266,
+      "run_id": 3
+    },
+    {
+      "kind": "tip_scratch_workspace",
+      "payload": {
+        "message": "scratch workspaces are ephemeral — they're deleted when the task completes. Use --workspace worktree: (git worktree) or --workspace dir:/abs/path (existing dir) to preserve worker output."
+      },
+      "created_at": 1794129266,
+      "run_id": null
+    },
+    {
+      "kind": "spawned",
+      "payload": {
+        "pid": 3980562,
+        "started_at": "fda413a9-14a3-4575-b3a0-f6df7f303322:0|84625849"
+      },
+      "created_at": 1794129266,
+      "run_id": 3
+    },
+    {
+      "kind": "owner_admitted",
+      "payload": {
+        "db": "/home/user/.hermes/state.db",
+        "session_id": "local-d0201cf6c116ae76f5a8a0bca9516a4432f68223cdea23b030325f7268ba523c",
+        "request_id": "kanban:[\"default\",\"t_534e27fa\",3]",
+        "pid": 1077,
+        "birth": 1793283014.22
+      },
+      "created_at": 1794129267,
+      "run_id": 3
+    },
+    {
+      "kind": "worker_bound",
+      "payload": {
+        "pid": 3980590,
+        "claim_lock": "ip-10-42-0-110:1077",
+        "started_at": "fda413a9-14a3-4575-b3a0-f6df7f303322:0|84625927"
+      },
+      "created_at": 1794129268,
+      "run_id": 3
+    },
+    {
+      "kind": "heartbeat",
+      "payload": null,
+      "created_at": 1794129317,
+      "run_id": 3
+    },
+    {
+      "kind": "completed",
+      "payload": {
+        "result_len": 0,
+        "summary": "Demo placeholder card. It has no parent or child tasks and no content beyond the demo description, so no action was needed. The earlier blocked comments about Acme payment mode (mock or pay-v2) are unrelated to this card and were not acted on."
+      },
+      "created_at": 1794129351,
+      "run_id": 3
+    },
+    {
+      "kind": "worker_result",
+      "payload": {
+        "pid": 3980590,
+        "claim_lock": "ip-10-42-0-110:1077",
+        "exit_code": 0,
+        "last_output": "I closed the demo card t_534e27fa as complete. It had no parent or child tasks and nothing beyond the demo description, so I did no work. The completion note says it was a demo placeholder.\n\nThe two earlier blocked comments asked whether Acme should use mock or real pay-v2 payments on a testnet. They have nothing to do with this card, so I ignored them. That question is still unanswered if you care about it."
+      },
+      "created_at": 1794129357,
+      "run_id": 3
+    }
+  ],
+  "runs": [
+    {
+      "id": 1,
+      "profile": null,
+      "step_key": null,
+      "status": "blocked",
+      "outcome": "blocked",
+      "summary": "Demo: need your decision. Which payment mode should Acme use when it is redeployed: mock or real pay-v2 on a testnet? Reply with 1 or 2.",
+      "error": null,
+      "metadata": null,
+      "worker_pid": null,
+      "started_at": 1794128959,
+      "ended_at": 1794128959
+    },
+    {
+      "id": 2,
+      "profile": null,
+      "step_key": null,
+      "status": "blocked",
+      "outcome": "blocked",
+      "summary": "Demo: need your decision. Which payment mode should Acme use when it is redeployed: mock or real pay-v2 on a testnet? Reply with 1 or 2.",
+      "error": null,
+      "metadata": null,
+      "worker_pid": null,
+      "started_at": 1794129253,
+      "ended_at": 1794129253
+    },
+    {
+      "id": 3,
+      "profile": "default",
+      "step_key": null,
+      "status": "done",
+      "outcome": "completed",
+      "summary": "Demo placeholder card. It has no parent or child tasks and no content beyond the demo description, so no action was needed. The earlier blocked comments about Acme payment mode (mock or pay-v2) are unrelated to this card and were not acted on.",
+      "error": null,
+      "metadata": {
+        "parents": 0,
+        "children": 0,
+        "action": "closed, no work needed",
+        "worker_session_id": "local-d0201cf6c116ae76f5a8a0bca9516a4432f68223cdea23b030325f7268ba523c"
+      },
+      "worker_pid": null,
+      "started_at": 1794129266,
+      "ended_at": 1794129351
+    }
+  ]
+}

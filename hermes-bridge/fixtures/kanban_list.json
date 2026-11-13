@@ -1,0 +1,30 @@
+[
+  {
+    "id": "t_534e27fa",
+    "title": "Review and close demo card (kanban-empowered trial)",
+    "body": "This is a demo card created to trial the Kanban board and is explicitly marked safe to delete. There is no functional work to perform. Worker steps: (1) Confirm the card has no linked parent or child tasks and no meaningful content beyond the title. (2) If confirmed, mark the task complete with a brief note stating it was a demo placeholder and no action was needed (or archive/delete it if the board permits). (3) If any unexpected dependencies or content are found, leave a comment describing them and do not delete. Acceptance criteria: the card is closed or removed, and a short completion note records what was done.",
+    "assignee": "default",
+    "status": "done",
+    "priority": 0,
+    "tenant": null,
+    "workspace_kind": "scratch",
+    "workspace_path": "/home/user/.hermes/kanban/workspaces/t_534e27fa",
+    "branch_name": null,
+    "project_id": null,
+    "created_by": "user",
+    "created_at": 1794128680,
+    "started_at": 1794129266,
+    "completed_at": 1794129351,
+    "result": null,
+    "skills": [],
+    "max_runtime_seconds": null,
+    "max_retries": null,
+    "model_override": null,
+    "provider_override": null,
+    "session_id": null,
+    "workflow_template_id": null,
+    "current_step_key": null,
+    "completion_contract": "local-only",
+    "last_failure_error": null
+  }
+]
