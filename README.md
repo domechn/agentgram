@@ -4,7 +4,8 @@
 
 A macOS app for talking to your [Hermes](https://hermes-agent.nousresearch.com/docs) agents.
 Every Hermes profile is a bot in the sidebar; you can create, clone and delete bots, put them in
-groups that talk to each other, and work the Hermes kanban board, all from forms and buttons.
+groups that talk to each other, work the Hermes kanban board, schedule recurring prompts and
+browse the files your bots produce, all from forms and buttons.
 The conversation view is built for agent output (Markdown, code, tables, streaming, approval
 buttons). No telemetry.
 
@@ -93,12 +94,13 @@ Good to know:
 |---|---|
 | `⌘N` / `⌘⇧N` | New bot (a Hermes profile) / new group |
 | `⌘T` | New chat with the selected bot (earlier chats: clock icon in the header) |
-| `⌘B` / `⌘L` | Kanban board / Library (files in the bots' workspaces) |
+| `⌘B` / `⌘L` / `⌘J` | Kanban board / Library (every bot's files) / Schedules (Hermes cron jobs) |
 | `⌘I` | Workspace panel of the selected bot or group: Board, Files, Activity |
 | `⌘K` | Quick switcher |
 | `⌘1`…`⌘9` | Jump to bot |
 | `⌘F` | Search messages in the current chat |
-| `⌘↩` | Send (`↩` is a newline). While a turn is running, sending steers it |
+| `↩` | Send; `⇧↩` or `⌥↩` is a newline. While an input method is composing (pinyin, kana…), `↩` confirms the composition and does not send. Prefer `⌘↩` to send? Settings → Composer. While a turn is running, sending steers it |
+| `esc` | Close the switcher, search or workspace panel; cancel a reply |
 | `@` | In a group: mention a member; `↑`/`↓`, `↩` or `⇥` to complete |
 | `/` | Telegram bots: command palette |
 | `↑` / `↓` | Input history, when the composer is empty |
@@ -107,6 +109,19 @@ Right-click a bot for clone, stop, delete and its workspace. Approval requests f
 show up as buttons under its message. Drop or paste files to send them: they are stored on
 the host and their paths are given to the agent. On the board, click a card for its comments,
 runs and events, and to assign, comment, block or complete it.
+
+**Library** lists what you sent your bots, what they wrote to their workspaces and what board
+tasks produced, newest first. Search by name, filter by bot and type; click a file to download
+and open it, or use the row buttons (or right-click) to save it somewhere or reveal it in Finder.
+
+**Schedules** are Hermes cron jobs. Pick a bot, a prompt and when it runs: every N minutes or
+hours, daily at a time, weekly on chosen days, or a raw cron expression. Clock times are entered
+in the timezone you choose (Asia/Shanghai by default) and converted to the host's; the row shows
+both the plain description and the cron expression Hermes stores. From the list you can pause,
+resume, run now, edit, delete and read the output of the last run. "Deliver to" is Hermes'
+delivery target: `local` keeps the output on the host, `telegram` sends it to the bot's Telegram
+home chat. Schedules and the one-request Library need hermes-bridge 0.2.1 on the host: after
+updating the app, `git pull` there and run `sudo ./install.sh` again (the key is kept).
 
 Telegram bots: turn on **Settings → Show Telegram bots and groups**, then pin one by
 `@username` or group title. Forum topics appear under their group.
@@ -136,10 +151,11 @@ The bridge tests can also drive a real Hermes home while Telegram stays faked:
 `AG_LIVE_HERMES_HOME=… AG_LIVE_API=http://127.0.0.1:8642 python3 -m unittest test_bridge.LiveTests`.
 They create and delete a throwaway profile and a kanban task, so point them at a scratch home.
 
-CI (`.github/workflows/build.yml`) runs on every push to `main`: tests, build, ad-hoc sign,
-`AgentGram.dmg` as a workflow artifact and as the asset of the release for the
-current `MARKETING_VERSION` in `project.yml` (bump it to cut a new release; older releases are
-left untouched).
+CI (`.github/workflows/build.yml`): every push to `main` runs the bridge tests on Linux. The
+macOS job (tests, build, ad-hoc sign, launch smoke test, DMG) runs only for a `v*` tag or a manual
+dispatch, and publishes `AgentGram.dmg` as the asset of the release for the
+`MARKETING_VERSION` in `project.yml`. To release: bump the version, push, then push the tag
+`v<version>` (it must match `project.yml`).
 
 The app icon is drawn in `App/Icon/AppIcon.svg`. After editing it, run `App/Icon/render.sh`
 (needs `rsvg-convert`) and commit the regenerated PNGs in `App/Assets.xcassets`; CI only

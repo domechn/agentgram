@@ -173,9 +173,12 @@ Ops: `hello`, `profiles.list`, `profile.create|delete|clone`, `profile.stop` (st
 profile's live runs), `gateway.restart`, `models.list`, `toolsets.list`, `chat.send` (stream),
 `run.stop`, `run.steer`, `approval.respond`, `sessions.list`, `session.messages`,
 `kanban.boards|list|show|create|assign|comment|complete|block|unblock`, `groups.list|save|delete`,
-`group.send` (stream), `group.history`, `file.put`, `files.list`, `files.get`, `activity`.
-Live refresh is polling (profiles every 60 s, the board every 15 s while visible); there is no
-push channel, so there is no `status.watch`. Bot messages are sent with `disable_notification`.
+`group.send` (stream), `group.history`, `file.put`, `files.list`, `files.get`, `activity`,
+`jobs.list|create|update|delete|pause|resume|run|output`.
+Live refresh is polling (profiles every 60 s, the board every 15 s and schedules every 30 s
+while visible); there is no push channel, so there is no `status.watch`. Bot messages are sent
+with `disable_notification`. `hello` reports the bridge version; an app that needs a newer
+bridge says so in a banner instead of failing on unknown ops.
 
 ### Bridge (`hermes-bridge/bridge.py`)
 
@@ -200,8 +203,34 @@ has not seen yet, so members see each other. If a reply `@mentions` another memb
 relays it, up to 4 hops per user message and never back to the speaker. Limits: turns run one
 after another, not in parallel; members only "hear" the others when next addressed.
 
+Schedules (bridge 0.2.1): each profile has its own cron store, served by the Hermes API at
+`/p/<profile>/api/jobs` (GET, POST, PATCH, DELETE, and POST `…/pause|resume|run`). `jobs.list`
+asks every profile that has a `cron/jobs.json` and returns the jobs trimmed to what the app
+shows (no origin chat ids), plus per profile the UTC offset of the zone Hermes evaluates cron
+expressions in (`timezone:` in its config, else the server's). `jobs.output` returns the
+response part of the newest file in `cron/output/<job>/`. Job writes are audited like the others.
+
+Library (bridge 0.2.1): `files.list` without a profile returns every profile's inbox and
+workspace files plus the kanban workspaces in one reply (newest 500), each tagged with its
+owner and source. v0.2.0 asked once per profile, in sequence, and drew nothing but a spinner
+until the last answer: with a dozen profiles the Library looked like it never opened.
+
 ### App
 
+- `AgentCore/Schedule.swift` (pure, unit-tested): job envelopes, the schedule builder (form
+  value ⇄ the string Hermes takes, with the clock moved between the user's zone and the
+  host's), Library filtering, and `returnAction`, the rule for what Return does in the composer.
+- Composer: an `NSTextView` behind `NSViewRepresentable`, because Return must ask the input
+  method first. `textView(_:doCommandBy:)` reads `hasMarkedText()`; while a composition is open
+  Return, arrows, Tab and Esc all stay with the input method. Otherwise ⇧/⌥ Return is a
+  newline, an open palette takes Return as "complete", and plain Return sends (or is a newline
+  with "⌘↩ sends" chosen in Settings). ⌘↩ always sends.
+- Timeline: a one-point sentinel at the end of the list tells whether the user is at the
+  bottom; the scroll view follows new output only then, and a "Jump to latest" pill appears
+  otherwise.
+- Connection trouble is a banner above the content with the way out (Retry for a bridge that
+  stopped answering, the update command for an old bridge). Lists load behind skeleton rows and
+  keep their last contents in the store, so Library and Schedules reopen instantly.
 - `AgentCore/Bridge.swift` (pure, unit-tested): frame sealing, envelope types, stream-segment
   assembly, kanban column grouping, `@mention` completion, avatar colours.
 - `App/Store/Hermes.swift`: extension of `AppStore`. Resolves the bridge bot, sends frames with
@@ -222,8 +251,12 @@ after another, not in parallel; members only "hear" the others when next address
 - Per-bot start/stop/restart does not exist in Hermes' one-gateway model (see above).
 - Board cards show title, assignee and id; dependencies are in the task detail (the list
   output of `hermes kanban` does not carry links).
-- "Library" and the Files tab list the bot's `workspace/` directory and the files you sent it;
-  files an agent writes elsewhere on the host are not listed.
+- Library and the Files tab list the bots' `workspace/` directories, the files you sent them
+  and the kanban workspaces; files an agent writes elsewhere on the host are not listed.
+- Schedules: the builder's timezone conversion uses today's UTC offsets, so a zone with
+  daylight saving drifts by an hour at the switch until the job is saved again (Asia/Shanghai
+  and UTC have none). One-shot jobs are shown and can be paused or deleted, but new ones are
+  recurring only.
 - Large payloads are sent as one document instead of being chunked across messages.
 - The direct URL / SSH connectors and Telegram supergroup creation from the earlier revisions
   of the brief were dropped in favour of the single bridge transport.
@@ -249,15 +282,18 @@ after another, not in parallel; members only "hear" the others when next address
 
 ## Keyboard
 
-`⌘K` quick switcher, `⌘1…9` agents, `⌘B` board, `⌘N` new bot, `⌘⇧N` new group, `⌘F` search in agent, `⌘↩` send,
-`↑/↓` input history (when the composer is empty or showing a history entry), `/` command palette
-(`↑/↓` to move, `↩`/`⇥` to complete), `esc` closes the switcher / search / reply.
+`⌘K` quick switcher, `⌘1…9` agents, `⌘B` board, `⌘L` library, `⌘J` schedules, `⌘N` new bot,
+`⌘⇧N` new group, `⌘F` search in agent, `↩` send (`⇧↩`/`⌥↩` newline; never while an input method
+is composing; `⌘↩` always sends), `↑/↓` input history (when the composer is empty or showing a
+history entry), `/` command palette (`↑/↓` to move, `↩`/`⇥` to complete), `esc` closes the
+switcher / search / workspace panel / reply.
 
 ## CI
 
-GitHub Actions on `macos-latest`: `swift test` → `xcodegen` → `xcodebuild` (Release, ad-hoc
-signed) → `hdiutil` DMG → artifact + the release for the current `MARKETING_VERSION`.
-A second job runs the bridge's Python tests on Linux.
+Every push runs the bridge's Python tests on Linux. The macOS job runs only for a `v*` tag or
+a manual dispatch (macOS minutes bill 10x on private repos): `swift test` → `xcodegen` →
+`xcodebuild` (Release, ad-hoc signed, SwiftPM checkout cached) → launch smoke test → `hdiutil`
+DMG → the release for the `MARKETING_VERSION` in `project.yml`, which a pushed tag must match.
 
 ## Known shortcuts
 
