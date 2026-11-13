@@ -30,6 +30,7 @@ struct SidebarView: View {
             NavRow(title: "Board", symbol: "rectangle.split.3x1", selected: store.section == .board,
                    badge: store.hermes.tasks.filter { $0.status == "running" }.count) { store.section = .board }
             NavRow(title: "Library", symbol: "books.vertical", selected: store.section == .library, badge: 0) { store.section = .library }
+            NavRow(title: "Schedules", symbol: "calendar.badge.clock", selected: store.section == .schedules, badge: 0) { store.section = .schedules }
 
             HStack {
                 Text("Bots").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -104,8 +105,7 @@ struct SidebarView: View {
                     if topic.unread > 0 || store.activity[topicId] != nil { UnreadDot() }
                 }
                 .padding(.leading, 34).padding(.trailing, 8).padding(.vertical, 5)
-                .background(store.section == .chat && store.selection == topicId ? Theme.selected : .clear, in: RoundedRectangle(cornerRadius: 9))
-                .contentShape(Rectangle())
+                .rowHighlight(selected: store.section == .chat && store.selection == topicId)
             }
             .buttonStyle(.plain)
         }
@@ -172,7 +172,7 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 14)).foregroundStyle(.secondary)
-                .frame(width: 28, height: 28).contentShape(Rectangle())
+                .frame(width: 28, height: 28).rowHighlight(radius: 7)
         }
         .buttonStyle(.plain).help(help).accessibilityLabel(help)
     }
@@ -194,8 +194,7 @@ struct NavRow: View {
                 Badge(count: badge)
             }
             .padding(.horizontal, 8).padding(.vertical, 7)
-            .background(selected ? Theme.selected : .clear, in: RoundedRectangle(cornerRadius: 9))
-            .contentShape(Rectangle())
+            .rowHighlight(selected: selected)
         }
         .buttonStyle(.plain)
     }
@@ -206,20 +205,31 @@ struct BotRow: View {
     let status: Activity?
     let selected: Bool
 
+    private var spoken: String {
+        var parts = [agent.title]
+        if agent.unread > 0 { parts.append("\(agent.unread) unread") }
+        if agent.offline { parts.append("offline") }
+        if status != nil { parts.append("working") }
+        return parts.joined(separator: ", ")
+    }
+
     var body: some View {
         HStack(spacing: 9) {
             Avatar(path: agent.avatarPath, title: agent.title, size: 24, symbol: agent.group != nil ? "person.2.fill" : nil)
                 .opacity(agent.offline ? 0.45 : 1)
-            Text(agent.title).lineLimit(1)
-            if status != nil { ProgressView().controlSize(.mini) }
+            VStack(alignment: .leading, spacing: 0) {
+                Text(agent.title).fontWeight(agent.unread > 0 ? .semibold : .regular).lineLimit(1)
+                if let status {
+                    Text(status == .streaming ? "working…" : "thinking…").font(.caption2).foregroundStyle(.blue)
+                }
+            }
             Spacer(minLength: 4)
-            if agent.unread > 0 { UnreadDot() }
+            if agent.unread > 0 { Badge(count: agent.unread) }
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
-        .background(selected ? Theme.selected : .clear, in: RoundedRectangle(cornerRadius: 9))
-        .contentShape(Rectangle())
+        .rowHighlight(selected: selected)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(agent.title + (agent.unread > 0 ? ", unread" : "") + (agent.offline ? ", offline" : ""))
+        .accessibilityLabel(spoken)
         .help(agent.subtitle)
     }
 }
@@ -362,6 +372,7 @@ struct QuickSwitcher: View {
                     .background(i == index ? Color.accentColor.opacity(0.25) : .clear)
                     .contentShape(Rectangle())
                     .onTapGesture { pick(items, i) }
+                    .onHover { if $0 { index = i } }
                 }
             }
             .frame(width: 460)

@@ -172,6 +172,7 @@ struct SettingsSheet: View {
     @State private var key = ""
     @State private var connecting = false
     @State private var confirmRestart = false
+    @AppStorage("enterSends") private var enterSends = true
 
     var body: some View {
         @Bindable var store = store
@@ -213,6 +214,13 @@ struct SettingsSheet: View {
                         Text("One gateway serves every bot, so this interrupts all running turns.")
                     }
             }
+            Divider()
+            Text("Composer").font(.headline)
+            Picker("Send with", selection: $enterSends) {
+                Text("↩ sends, ⇧↩ or ⌥↩ new line").tag(true)
+                Text("⌘↩ sends, ↩ new line").tag(false)
+            }
+            .pickerStyle(.radioGroup).labelsHidden()
             Divider()
             Text("Telegram").font(.headline)
             Toggle("Show Telegram bots and groups in the Bots list", isOn: $store.telegramSource)

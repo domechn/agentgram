@@ -684,7 +684,8 @@ extension AppStore {
 
     /// Creates the job, or updates `job`. Throws so the form can show Hermes' own message.
     func jobSave(_ job: CronJob?, profile: String, name: String, schedule: String, prompt: String, deliver: String) async throws {
-        var args: [String: Any] = ["profile": profile, "name": name, "schedule": schedule, "prompt": prompt, "deliver": deliver]
+        var args: [String: Any] = ["profile": profile, "name": name, "schedule": schedule, "deliver": deliver]
+        if job?.no_agent != true { args["prompt"] = prompt } // a script job has no prompt to overwrite
         if let job { args["id"] = job.id }
         let saved: CronJob = try await bridge(job == nil ? "jobs.create" : "jobs.update", args)
         jobReplace(saved)

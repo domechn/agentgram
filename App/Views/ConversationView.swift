@@ -9,6 +9,7 @@ struct ConversationView: View {
     @State private var query = ""
     @State private var results: [Msg]?
     @State private var showSessions = false
+    @State private var atBottom = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -93,7 +94,7 @@ struct ConversationView: View {
     private var timeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     if conv.hasMore {
                         Button(conv.loading ? "Loading…" : "Load earlier messages") {
                             let first = conv.msgs.first?.id
@@ -114,6 +115,10 @@ struct ConversationView: View {
                     ForEach(conv.drafts) { draft in
                         MessageView(msg: draft, isLast: true).equatable()
                     }
+                    // In view = the user is at the bottom; scrolled away, the pill below appears.
+                    Color.clear.frame(height: 1).id(bottomID)
+                        .onAppear { atBottom = true }
+                        .onDisappear { atBottom = false }
                 }
                 .padding(.horizontal, 18).padding(.top, 58).padding(.bottom, 10)
                 .frame(maxWidth: 860)
@@ -121,8 +126,31 @@ struct ConversationView: View {
             }
             // Follows new output only while the user is at the bottom.
             .defaultScrollAnchor(.bottom)
+            .onChange(of: conv.msgs.last?.id) {
+                // What the user just sent is always brought into view.
+                if conv.msgs.last?.outgoing == true { proxy.scrollTo(bottomID, anchor: .bottom) }
+            }
+            .overlay(alignment: .bottom) {
+                if !atBottom {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(bottomID, anchor: .bottom) }
+                    } label: {
+                        Label(store.activity[conv.id] != nil ? "Jump to latest · working…" : "Jump to latest", systemImage: "arrow.down")
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Theme.surface, in: Capsule())
+                            .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 8)
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: atBottom)
         }
     }
+
+    private let bottomID = "timeline-bottom"
 
     private func replyPreview(_ message: Msg) -> String? {
         guard message.replyTo != 0 else { return nil }
@@ -170,7 +198,7 @@ struct SessionPicker: View {
                                 dismiss()
                             } label: {
                                 Text(session.title).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 4).contentShape(Rectangle())
+                                    .padding(.vertical, 4).padding(.horizontal, 6).rowHighlight(radius: 6)
                             }
                             .buttonStyle(.plain)
                         }
@@ -194,6 +222,7 @@ struct MessageView: View, Equatable {
     var isLast = false
     var onReply: (() -> Void)?
     @State private var expanded: Bool?
+    @State private var hovering = false
 
     // Closures are not compared: a row re-renders only when what it shows changes.
     static func == (a: MessageView, b: MessageView) -> Bool {
@@ -220,6 +249,15 @@ struct MessageView: View, Equatable {
                     case .pending: Text("sending…").font(.caption2).foregroundStyle(.tertiary)
                     case .failed(let reason): Text("failed: \(reason)").font(.caption2).foregroundStyle(.red)
                     }
+                    Button {
+                        Pasteboard.copy(msg.text)
+                        store.toast = "Copied"
+                    } label: {
+                        Image(systemName: "doc.on.doc").font(.caption2)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .opacity(hovering && !msg.text.isEmpty ? 1 : 0)
+                    .help("Copy message").accessibilityLabel("Copy message")
                 }
                 if let reply {
                     HStack(spacing: 6) {
@@ -253,6 +291,7 @@ struct MessageView: View, Equatable {
             if !msg.outgoing { Spacer(minLength: 0) }
         }
         .frame(maxWidth: .infinity, alignment: msg.outgoing ? .trailing : .leading)
+        .onHover { hovering = $0 }
         .contextMenu {
             if let onReply, !isHermesChatID(msg.chatId) { Button("Reply", action: onReply) }
             Button("Copy") { Pasteboard.copy(msg.text) }

@@ -9,8 +9,7 @@ struct BoardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Text("Board").font(.title2.weight(.semibold))
+            SectionHeader(title: "Board") {
                 Menu(boardName) {
                     ForEach(store.hermes.boards) { board in
                         Button("\(board.name) (\(board.total))") {
@@ -22,13 +21,13 @@ struct BoardView: View {
                 .menuStyle(.borderlessButton).fixedSize()
                 .accessibilityLabel("Switch board")
                 Spacer()
-                if let error = store.hermes.boardError {
-                    Text(error).font(.caption).foregroundStyle(.red).lineLimit(1)
-                }
                 IconButton(symbol: "arrow.clockwise", help: "Refresh") { Task { await store.boardRefresh() } }
                 Button("New Task") { creating = true }.disabled(!store.hermes.isConnected)
             }
-            .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 8)
+            if let error = store.hermes.boardError, store.hermes.isConnected {
+                ErrorBanner(text: error) { Task { await store.boardRefresh() } }
+                    .padding(.horizontal, 20).padding(.bottom, 8)
+            }
 
             if !store.hermes.isConnected {
                 ContentUnavailableView("Not connected to Hermes", systemImage: "rectangle.split.3x1",

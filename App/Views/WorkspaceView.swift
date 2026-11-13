@@ -96,7 +96,7 @@ struct HostFileList: View {
                             Spacer()
                             if fetching == item.id { ProgressView().controlSize(.small) }
                         }
-                        .padding(.horizontal, 8).padding(.vertical, 6).contentShape(Rectangle())
+                        .padding(.horizontal, 8).padding(.vertical, 6).rowHighlight()
                     }
                     .buttonStyle(.plain)
                     .help("Download and open")
@@ -202,25 +202,5 @@ struct ActivityCard: View {
         } catch {
             self.error = describe(error)
         }
-    }
-}
-
-/// Every bot's files in one place.
-struct LibraryView: View {
-    @Environment(AppStore.self) private var store
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Library").font(.title2.weight(.semibold))
-                .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 8)
-            if store.hermes.isConnected {
-                HostFileList(profiles: store.hermes.profiles.map(\.name)).frame(maxWidth: 760, alignment: .leading)
-                    .padding(.horizontal, 12)
-            } else {
-                ContentUnavailableView("Not connected to Hermes", systemImage: "books.vertical",
-                                       description: Text("Open Settings (⌘,) to connect to your Hermes bridge."))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

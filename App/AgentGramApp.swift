@@ -20,7 +20,7 @@ struct AgentGramApp: App {
         WindowGroup(id: "main") {
             RootView()
                 .environment(store)
-                .frame(minWidth: 820, minHeight: 520)
+                .frame(minWidth: 860, minHeight: 540)
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -46,6 +46,7 @@ struct AgentGramApp: App {
                 Divider()
                 Button("Board") { store.section = .board }.keyboardShortcut("b")
                 Button("Library") { store.section = .library }.keyboardShortcut("l")
+                Button("Schedules") { store.section = .schedules }.keyboardShortcut("j")
                 Button("Toggle Workspace") { store.showWorkspace.toggle() }.keyboardShortcut("i")
                 Button("Toggle Sidebar") { store.showSidebar.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
                 Divider()
@@ -108,8 +109,10 @@ struct RootView: View {
                     .background(.regularMaterial, in: Capsule())
                     .shadow(radius: 6)
                     .padding(.bottom, 80)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(.easeOut(duration: 0.2), value: store.toast)
         .task { Notifier.requestPermission() }
     }
 }
@@ -121,21 +124,27 @@ struct MainView: View {
         @Bindable var store = store
         HStack(spacing: 0) {
             if store.showSidebar {
-                SidebarView()
+                SidebarView().transition(.move(edge: .leading))
                 Divider()
             }
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topLeading) {
-                    if !store.showSidebar {
-                        IconButton(symbol: "sidebar.left", help: "Show sidebar") { store.showSidebar = true }.padding(8)
-                    }
+            VStack(spacing: 0) {
+                banner
+                content.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .overlay(alignment: .topLeading) {
+                if !store.showSidebar {
+                    IconButton(symbol: "sidebar.left", help: "Show sidebar") { store.showSidebar = true }.padding(8)
                 }
+            }
             if store.showWorkspace, store.section == .chat, let id = store.selection, let agent = store.agent(id.chatId), agent.isHermes {
                 Divider()
                 WorkspacePanel(agent: agent).id(agent.id).frame(width: 340)
+                    .transition(.move(edge: .trailing))
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: store.showWorkspace)
+        .animation(.easeInOut(duration: 0.2), value: store.showSidebar)
+        .onExitCommand { store.escape() }
         .background(Theme.canvas.ignoresSafeArea())
         .sheet(isPresented: $store.showAddAgent) { AddAgentSheet() }
         .sheet(isPresented: $store.showSettings) { SettingsSheet() }
@@ -144,10 +153,33 @@ struct MainView: View {
         .overlay { if store.showSwitcher { QuickSwitcher() } }
     }
 
+    /// Something is wrong with the connection, and what to do about it.
+    @ViewBuilder private var banner: some View {
+        Group {
+            if case .failed(let reason) = store.hermes.status {
+                ErrorBanner(text: "The Hermes bridge is not answering. \(reason)", symbol: "wifi.exclamationmark") {
+                    Task { await store.hermesConnect() }
+                }
+            } else if store.hermes.isConnected && !store.connected {
+                ErrorBanner(text: "Telegram is offline, so the bridge cannot be reached. Reconnecting…", symbol: "wifi.slash") {
+                    Task { await store.hermesRefresh() }
+                }
+            } else if store.hermes.bridgeOutdated {
+                ErrorBanner(text: "The host runs hermes-bridge \(store.hermes.bridgeVersion); Schedules need \(HermesState.requiredBridge). On the host: git pull, then sudo ./install.sh",
+                            symbol: "arrow.down.circle", action: "Check Again") {
+                    Task { await store.hermesConnect() }
+                }
+            }
+        }
+        // Clear of the floating chat header and the show-sidebar button.
+        .padding(.horizontal, 12).padding(.top, 8).padding(.leading, store.showSidebar ? 0 : 32)
+    }
+
     @ViewBuilder private var content: some View {
         switch store.section {
         case .board: BoardView()
         case .library: LibraryView()
+        case .schedules: SchedulesView()
         case .chat:
             if let id = store.selection, let agent = store.agent(id.chatId) {
                 ConversationView(conv: store.conversation(id), agent: agent).id(id)
