@@ -12,7 +12,7 @@ concurrency:
 jobs:
   # Cheap (1x) job: runs on every push.
   bridge:
-    runs-on: user-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Bridge tests
