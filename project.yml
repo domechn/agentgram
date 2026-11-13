@@ -27,7 +27,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.domechn.agentgram
-        MARKETING_VERSION: 0.3.0
+        MARKETING_VERSION: 0.3.1
         # Local builds only. A release build gets its number from the version (0.3.1 -> 301,
         # scripts/appcast.py build): the updater compares build numbers.
         CURRENT_PROJECT_VERSION: 4

@@ -3,6 +3,11 @@
 The section of a version is the body of its GitHub release and the release notes the in-app
 updater shows.
 
+## 0.3.1
+
+- A small release to exercise the updater: 0.3.0 offers it under Settings → Updates. No
+  functional changes to the app or the bridge.
+
 ## 0.3.0
 
 - AgentGram updates itself: Settings → Updates, or "Check for Updates…" in the app menu. Checks

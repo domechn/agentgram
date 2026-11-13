@@ -33,7 +33,7 @@ from zoneinfo import ZoneInfo
 
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 PREFIX = "AG1."
 AAD = b"AG1"
 TEXT_LIMIT = 4096        # Telegram message length
