@@ -30,10 +30,14 @@ private struct RowHighlight: ViewModifier {
     let radius: CGFloat
     @State private var hovering = false
 
+    private var fill: Color {
+        if selected { return Theme.selected }
+        return hovering ? Theme.hover : Color.clear
+    }
+
     func body(content: Content) -> some View {
         content
-            .background(selected ? Theme.selected : hovering ? Theme.hover : Color.clear,
-                        in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
     }
@@ -87,12 +91,18 @@ struct ErrorBanner: View {
 struct SkeletonRows: View {
     var count = 6
 
+    /// Uneven widths, so the rows read as text.
+    private func width(_ i: Int, _ base: Int, _ step: Int, _ spread: Int) -> CGFloat {
+        let value: Int = base + (i * step) % spread
+        return CGFloat(value)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(0..<count, id: \.self) { i in
                 VStack(alignment: .leading, spacing: 5) {
-                    RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: CGFloat(180 + (i * 53) % 140), height: 11)
-                    RoundedRectangle(cornerRadius: 4).fill(.quaternary.opacity(0.6)).frame(width: CGFloat(120 + (i * 37) % 90), height: 9)
+                    RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: width(i, 180, 53, 140), height: 11)
+                    RoundedRectangle(cornerRadius: 4).fill(.quaternary).opacity(0.6).frame(width: width(i, 120, 37, 90), height: 9)
                 }
             }
         }

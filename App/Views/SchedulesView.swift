@@ -77,7 +77,7 @@ struct SchedulesView: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 10) {
-                            ForEach(hermes.jobs.sorted { ($0.next_run ?? .infinity, $0.name) < ($1.next_run ?? .infinity, $1.name) }) { job in
+                            ForEach(sortedJobs) { job in
                                 row(job)
                             }
                         }
@@ -98,13 +98,33 @@ struct SchedulesView: View {
         .sheet(item: $form) { JobFormSheet(form: $0, zone: zone) }
         .sheet(item: $output) { JobOutputSheet(job: $0) }
         .confirmationDialog(
-            "Delete “\(deleting?.name ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            deleteTitle, isPresented: deletingShown,
             presenting: deleting
         ) { job in
             Button("Delete", role: .destructive) { act("delete", job) }
         } message: { _ in
             Text("The schedule is removed from the Hermes host. Output it already produced stays there.")
         }
+    }
+
+    /// Soonest first; jobs without a next run last.
+    private var sortedJobs: [CronJob] {
+        store.hermes.jobs.sorted { (a: CronJob, b: CronJob) -> Bool in
+            let x: Double = a.next_run ?? Double.infinity
+            let y: Double = b.next_run ?? Double.infinity
+            return x == y ? a.name < b.name : x < y
+        }
+    }
+
+    private var deleteTitle: String {
+        let name: String = deleting?.name ?? ""
+        return "Delete “" + name + "”?"
+    }
+
+    private var deletingShown: Binding<Bool> {
+        Binding<Bool>(get: { deleting != nil }, set: { shown in
+            if !shown { deleting = nil }
+        })
     }
 
     private func spec(_ job: CronJob) -> ScheduleSpec {
@@ -123,6 +143,13 @@ struct SchedulesView: View {
     private func row(_ job: CronJob) -> some View {
         let paused = !job.enabled || job.state == "paused"
         let failed = !job.last_error.isEmpty || (!job.last_status.isEmpty && job.last_status != "ok")
+        let running = job.state == "running"
+        let tint: Color = paused ? Color.gray : running ? Color.blue : Color.green
+        let state: String = paused ? "Paused" : job.state.capitalized
+        let what: String = job.no_agent || job.prompt.isEmpty ? "Runs script " + job.script : job.prompt
+        let next: String = "Next " + (paused ? "—" : stamp(job.next_run))
+        let last: String = "Last " + stamp(job.last_run) + (job.last_status.isEmpty ? "" : " · " + job.last_status)
+        let lastSymbol: String = failed ? "exclamationmark.circle" : "checkmark.circle"
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Avatar(path: nil, title: job.profile, size: 22)
@@ -131,11 +158,11 @@ struct SchedulesView: View {
                     Text(job.profile).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                Text(paused ? "Paused" : job.state.capitalized)
+                Text(verbatim: state)
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 8).padding(.vertical, 2)
-                    .foregroundStyle(paused ? Color.secondary : job.state == "running" ? Color.blue : Color.green)
-                    .background((paused ? Color.gray : job.state == "running" ? Color.blue : Color.green).opacity(0.14), in: Capsule())
+                    .foregroundStyle(paused ? Color.secondary : tint)
+                    .background(tint.opacity(0.14), in: Capsule())
             }
             HStack(spacing: 8) {
                 Image(systemName: "clock").foregroundStyle(.secondary)
@@ -149,13 +176,12 @@ struct SchedulesView: View {
             }
             .font(.callout)
             if !job.prompt.isEmpty || !job.script.isEmpty {
-                Text(job.no_agent || job.prompt.isEmpty ? "Runs script \(job.script)" : job.prompt)
+                Text(verbatim: what)
                     .font(.callout).foregroundStyle(.secondary).lineLimit(2)
             }
             HStack(spacing: 14) {
-                Label("Next \(paused ? "—" : stamp(job.next_run))", systemImage: "arrow.right.circle")
-                Label("Last \(stamp(job.last_run))\(job.last_status.isEmpty ? "" : " · " + job.last_status)",
-                      systemImage: failed ? "exclamationmark.circle" : "checkmark.circle")
+                Label(next, systemImage: "arrow.right.circle")
+                Label(last, systemImage: lastSymbol)
                     .foregroundStyle(failed ? Color.red : Color.secondary)
                     .help(job.last_error)
                 Label(job.deliver, systemImage: "paperplane").help("Where the result is delivered")
@@ -242,18 +268,18 @@ struct JobFormSheet: View {
                 }
                 switch mode {
                 case .minutes:
-                    Stepper("Every \(every) minute\(every == 1 ? "" : "s")", value: $every, in: 1...10080)
+                    Stepper(describeSchedule(.minutes(every)), value: $every, in: 1...10080)
                 case .hours:
-                    Stepper("Every \(every) hour\(every == 1 ? "" : "s")", value: $every, in: 1...168)
+                    Stepper(describeSchedule(.hours(every)), value: $every, in: 1...168)
                 case .daily, .weekly:
                     HStack {
                         Picker("At", selection: $hour) {
-                            ForEach(0..<24, id: \.self) { Text($0 < 10 ? "0\($0)" : "\($0)").tag($0) }
+                            ForEach(0..<24, id: \.self) { Text(verbatim: twoDigits($0)).tag($0) }
                         }
                         .fixedSize()
                         Text(":")
                         Picker("Minute", selection: $minute) {
-                            ForEach(0..<60, id: \.self) { Text($0 < 10 ? "0\($0)" : "\($0)").tag($0) }
+                            ForEach(0..<60, id: \.self) { Text(verbatim: twoDigits($0)).tag($0) }
                         }
                         .labelsHidden().fixedSize()
                     }
@@ -261,9 +287,7 @@ struct JobFormSheet: View {
                         HStack(spacing: 4) {
                             // Monday first; cron counts from Sunday = 0.
                             ForEach([1, 2, 3, 4, 5, 6, 0], id: \.self) { day in
-                                Toggle(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day], isOn: Binding(
-                                    get: { days.contains(day) },
-                                    set: { if $0 { days.insert(day) } else { days.remove(day) } }))
+                                Toggle(Self.dayNames[day], isOn: dayBinding(day))
                                     .toggleStyle(.button).controlSize(.small)
                             }
                         }
@@ -308,6 +332,18 @@ struct JobFormSheet: View {
         .padding(16)
         .frame(width: 500)
         .onAppear(perform: load)
+    }
+
+    private static let dayNames: [String] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+    private func twoDigits(_ n: Int) -> String { (n < 10 ? "0" : "") + String(n) }
+
+    private func dayBinding(_ day: Int) -> Binding<Bool> {
+        Binding<Bool>(
+            get: { days.contains(day) },
+            set: { on in
+                if on { days.insert(day) } else { days.remove(day) }
+            })
     }
 
     /// What will be sent to Hermes, in words and as the string it takes.
@@ -383,11 +419,17 @@ struct JobOutputSheet: View {
     @State private var output: JobOutput?
     @State private var error: String?
 
+    private var subtitle: String {
+        guard let output else { return "Loading…" }
+        if output.file.isEmpty { return "No saved output" }
+        return "Run of " + stamp(output.ts) + " · " + output.file
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(job.name).font(.headline)
-                Text(output.map { $0.file.isEmpty ? "No saved output" : "Run of \(stamp($0.ts)) · \($0.file)" } ?? "Loading…")
+                Text(verbatim: subtitle)
                     .font(.caption).foregroundStyle(.secondary)
             }
             .padding(16)

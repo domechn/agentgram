@@ -23,7 +23,7 @@ jobs:
   build:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
@@ -49,11 +49,14 @@ jobs:
           key: spm-${{ hashFiles('project.yml') }}
           restore-keys: spm-
       - name: Build
+        shell: bash  # pipefail: the filter below must not hide a failed build
         run: |
+          # Not -quiet: the per-target lines (with the log's timestamps) show where the time goes.
           xcodebuild -project AgentGram.xcodeproj -scheme AgentGram -configuration Release \
             -derivedDataPath build -clonedSourcePackagesDirPath SourcePackages \
             -destination 'generic/platform=macOS' \
-            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- -quiet build
+            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- build \
+            | grep --line-buffered -E '(error|warning):|^(SwiftDriver |Ld |Resolve|Fetching|Computing|\*\* BUILD)'
       - name: Sign
         run: |
           APP=build/Build/Products/Release/AgentGram.app

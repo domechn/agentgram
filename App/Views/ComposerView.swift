@@ -75,6 +75,12 @@ struct ComposerView: View {
         .onChange(of: conv.draft) { paletteIndex = 0 }
     }
 
+    private var placeholder: String {
+        let what: String = conv.run != nil && agent.group == nil ? "Steer the running turn" : "Message " + agent.title
+        let keys: String = enterSends ? " · ↩ send, ⇧↩ new line" : " · ⌘↩ send"
+        return what + keys
+    }
+
     private var canSend: Bool {
         !conv.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !conv.attachments.isEmpty
     }
@@ -123,8 +129,7 @@ struct ComposerView: View {
             }
             .overlay(alignment: .leading) {
                 if conv.draft.isEmpty {
-                    Text((conv.run != nil && agent.group == nil ? "Steer the running turn" : "Message \(agent.title)")
-                         + (enterSends ? " · ↩ send, ⇧↩ new line" : " · ⌘↩ send"))
+                    Text(verbatim: placeholder)
                         .foregroundStyle(.tertiary).lineLimit(1)
                         .padding(.horizontal, 5)
                         .allowsHitTesting(false)

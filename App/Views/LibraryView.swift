@@ -57,7 +57,7 @@ struct LibraryView: View {
                         .padding(.horizontal, 12).padding(.bottom, 12)
                         .frame(maxWidth: 860, alignment: .leading)
                     }
-                    Text("\(files.count) of \(hermes.library.count) files · newest first")
+                    Text(verbatim: "\(files.count) of \(hermes.library.count) files · newest first")
                         .font(.caption).foregroundStyle(.tertiary)
                         .padding(.horizontal, 20).padding(.vertical, 6)
                 }
@@ -118,9 +118,13 @@ struct LibraryView: View {
     }
 
     private func detail(_ file: HostFile) -> String {
-        let source = ["sent": "sent by you", "workspace": "workspace", "board": "board task"][file.source ?? ""]
-        return [file.profile, source, ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file), stamp(Double(file.mtime))]
-            .compactMap { $0 }.joined(separator: " · ")
+        let sources: [String: String] = ["sent": "sent by you", "workspace": "workspace", "board": "board task"]
+        var parts: [String] = []
+        if let profile = file.profile { parts.append(profile) }
+        if let source = sources[file.source ?? ""] { parts.append(source) }
+        parts.append(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))
+        parts.append(stamp(Double(file.mtime)))
+        return parts.joined(separator: " · ")
     }
 
     /// Fetches the file from the host (TDLib caches it), then hands over its local URL.
